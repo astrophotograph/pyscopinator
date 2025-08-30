@@ -1001,5 +1001,16 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
         # Always attempt reconnection for main client unless explicitly disconnected
         return self.is_connected
 
+    async def __aenter__(self):
+        """Async context manager entry - connects to the telescope."""
+        await self.connect()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit - disconnects from the telescope."""
+        await self.disconnect()
+        # Don't suppress exceptions
+        return False
+
     def __str__(self):
         return f"{self.host}:{self.port}"

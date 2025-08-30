@@ -326,13 +326,24 @@ def interactive_cmd(ctx):
 @click.pass_context
 def version(ctx):
     """Show scopinator version."""
-    import scopinator
-    from importlib.metadata import version
     try:
+        from importlib.metadata import version
         v = version('scopinator')
         click.echo(f"Scopinator version: {v}")
+        # Show CalVer format explanation
+        if '.' in v:
+            parts = v.split('.')
+            if len(parts) >= 2 and parts[0].isdigit() and int(parts[0]) >= 2024:
+                click.echo(f"  Format: CalVer (YYYY.MM.PATCH)")
+                click.echo(f"  Year: {parts[0]}, Month: {parts[1]}, Patch: {parts[2] if len(parts) > 2 else '0'}")
     except:
-        click.echo("Scopinator version: development")
+        # Fallback to package version if metadata not available
+        try:
+            from scopinator import __version__
+            click.echo(f"Scopinator version: {__version__}")
+            click.echo(f"  Format: CalVer (YYYY.MM.PATCH)")
+        except:
+            click.echo("Scopinator version: development")
 
 
 if __name__ == '__main__':
