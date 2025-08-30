@@ -21,20 +21,29 @@ class SimpleCompleter:
         
     def complete(self, text, state):
         """Return the next possible completion for text."""
+        # Debug output (comment out in production)
+        # import sys
+        # print(f"\n[DEBUG] complete called: text='{text}', state={state}", file=sys.stderr)
+        
         if state == 0:
             # This is a new completion request, build the match list
             line = readline.get_line_buffer()
+            begin = readline.get_begidx()
+            end = readline.get_endidx()
             
-            # If we're completing the first word (command)
-            if not ' ' in line or line.endswith(' '):
+            # Get the text before the cursor
+            before_cursor = line[:end]
+            
+            # Check if we're completing the first word (command)
+            if ' ' not in before_cursor.strip():
                 # Complete command names
                 if text:
-                    self.matches = [cmd for cmd in self.commands if cmd.startswith(text)]
+                    self.matches = [cmd for cmd in self.commands if cmd.startswith(text.lower())]
                 else:
                     self.matches = self.commands[:]
             else:
                 # We're completing arguments/options for a command
-                parts = line.split()
+                parts = before_cursor.split()
                 cmd_name = parts[0] if parts else ""
                 
                 if cmd_name in self.cli_group.commands:
@@ -53,8 +62,18 @@ class SimpleCompleter:
                         self.matches = [opt for opt in options if opt.startswith(text)]
                     else:
                         self.matches = options[:]
+                elif cmd_name == 'help' and len(parts) == 1:
+                    # Complete command names after 'help'
+                    cmd_list = list(self.cli_group.commands.keys())
+                    if text:
+                        self.matches = [cmd for cmd in cmd_list if cmd.startswith(text.lower())]
+                    else:
+                        self.matches = cmd_list[:]
                 else:
                     self.matches = []
+            
+            # Sort matches for consistent ordering
+            self.matches.sort()
         
         # Return the state'th match
         try:
@@ -68,8 +87,20 @@ def setup_readline(completer):
     # Set our custom completer
     readline.set_completer(completer.complete)
     
-    # Configure readline behavior
-    readline.parse_and_bind('tab: complete')
+    # Configure readline behavior - handle macOS libedit vs GNU readline
+    import platform
+    if platform.system() == 'Darwin' and 'libedit' in readline.__doc__:
+        # macOS with libedit needs different binding
+        readline.parse_and_bind("bind ^I rl_complete")
+        # Also set the standard binding as fallback
+        readline.parse_and_bind("tab: complete")
+    else:
+        # Standard GNU readline binding
+        readline.parse_and_bind("tab: complete")
+    
+    # Additional bindings that might help
+    readline.parse_and_bind("set show-all-if-ambiguous on")
+    readline.parse_and_bind("set completion-ignore-case on")
     
     # Set word delimiters (what separates "words" for completion)
     readline.set_completer_delims(' \t\n;')
@@ -94,9 +125,23 @@ def run_interactive_mode(cli_group, ctx):
     completer = SimpleCompleter(cli_group)
     setup_readline(completer)
     
+    # Debug info for autocomplete
+    import platform
+    is_macos = platform.system() == 'Darwin'
+    is_libedit = 'libedit' in readline.__doc__ if readline.__doc__ else False
+    
     click.echo("Welcome to Scopinator Interactive Mode!")
     click.echo("Type 'help' for commands, Tab for autocomplete, 'exit' to quit.")
-    click.echo("Use arrow keys to navigate command history.\n")
+    click.echo("Use arrow keys to navigate command history.")
+    
+    # Show autocomplete status
+    if readline.get_completer():
+        if is_macos and is_libedit:
+            click.echo("📝 Note: On macOS, tab completion may require pressing Tab twice.")
+        click.echo("")
+    else:
+        click.echo("⚠️  Warning: Autocomplete not configured properly")
+        click.echo("")
     
     while True:
         try:
