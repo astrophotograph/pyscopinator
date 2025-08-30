@@ -128,8 +128,9 @@ def connect(ctx, host, port, timeout):
 @cli.command()
 @click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
 @click.option('--port', '-p', type=int, help='Port number')
+@click.option('--detailed', '-d', is_flag=True, help='Show detailed device information')
 @click.pass_context
-def status(ctx, host, port):
+def status(ctx, host, port, detailed):
     """Get current telescope status."""
     # Ensure context exists
     if not ctx.obj:
@@ -143,6 +144,7 @@ def status(ctx, host, port):
         return
     
     from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetDeviceState
     
     async def get_status():
         client = SeestarClient(host=host, port=port)
@@ -150,20 +152,146 @@ def status(ctx, host, port):
             await client.connect()
             click.echo(f"📡 Connected to {host}:{port}\n")
             
-            click.echo("🔭 Telescope Status:")
+            # Get comprehensive device state if detailed flag is set
+            if detailed:
+                device_response = await client.send_and_recv(GetDeviceState())
+                if device_response and device_response.result:
+                    device_state = device_response.result
+                    
+                    # Device Information
+                    if 'device' in device_state:
+                        click.echo("🔭 Device Information:")
+                        click.echo("-" * 40)
+                        dev = device_state['device']
+                        click.echo(f"Model: {dev.get('name', 'N/A')}")
+                        click.echo(f"Serial: {dev.get('id', 'N/A')}")
+                        click.echo(f"Firmware: {dev.get('app_ver', 'N/A')}")
+                        click.echo(f"System Version: {dev.get('pi_ver', 'N/A')}")
+                        click.echo()
+                    
+                    # Power & Temperature
+                    if 'pi_status' in device_state:
+                        click.echo("⚡ Power & Temperature:")
+                        click.echo("-" * 40)
+                        pi = device_state['pi_status']
+                        click.echo(f"Battery: {pi.get('battery_capacity', 'N/A')}%")
+                        click.echo(f"Charger: {pi.get('charger_status', 'N/A')}")
+                        click.echo(f"Charging: {'Yes' if pi.get('charge_online') else 'No'}")
+                        click.echo(f"Temperature: {pi.get('temp', 'N/A')}°C")
+                        click.echo(f"Battery Temp: {pi.get('battery_temp', 'N/A')}°C")
+                        click.echo(f"Over Temperature: {'Yes' if pi.get('is_overtemp') else 'No'}")
+                        click.echo()
+                    
+                    # Storage
+                    if 'storage' in device_state:
+                        click.echo("💾 Storage:")
+                        click.echo("-" * 40)
+                        storage = device_state['storage']
+                        click.echo(f"Current Storage: {storage.get('cur_storage', 'N/A')}")
+                        if 'storage_volume' in storage:
+                            for vol in storage['storage_volume']:
+                                click.echo(f"  {vol.get('name', 'N/A')}: {vol.get('freeMB', 0):,} MB free / {vol.get('totalMB', 0):,} MB total ({vol.get('used_percent', 0)}% used)")
+                        click.echo()
+                    
+                    # Network
+                    if 'station' in device_state:
+                        click.echo("📶 Network:")
+                        click.echo("-" * 40)
+                        station = device_state['station']
+                        if station.get('ssid'):
+                            click.echo(f"WiFi SSID: {station.get('ssid', 'N/A')}")
+                        if station.get('ip'):
+                            click.echo(f"IP Address: {station.get('ip', 'N/A')}")
+                        if station.get('sig_lev') is not None:
+                            click.echo(f"Signal Level: {station.get('sig_lev', 'N/A')} dBm")
+                        click.echo()
+                    
+                    # Mount
+                    if 'mount' in device_state:
+                        click.echo("🎯 Mount:")
+                        click.echo("-" * 40)
+                        mount = device_state['mount']
+                        click.echo(f"Tracking: {'Yes' if mount.get('tracking') else 'No'}")
+                        click.echo(f"Equatorial Mode: {'Yes' if mount.get('equ_mode') else 'No'}")
+                        click.echo(f"Move Type: {mount.get('move_type', 'N/A')}")
+                        click.echo()
+                    
+                    # Focuser
+                    if 'focuser' in device_state:
+                        click.echo("🔍 Focuser:")
+                        click.echo("-" * 40)
+                        focuser = device_state['focuser']
+                        click.echo(f"Position: {focuser.get('step', 'N/A')} / {focuser.get('max_step', 'N/A')}")
+                        click.echo(f"State: {focuser.get('state', 'N/A')}")
+                        click.echo()
+                    
+                    # Balance Sensor
+                    if 'balance_sensor' in device_state:
+                        click.echo("⚖️ Balance Sensor:")
+                        click.echo("-" * 40)
+                        sensor = device_state['balance_sensor']
+                        if 'data' in sensor:
+                            data = sensor['data']
+                            click.echo(f"Angle: {data.get('angle', 'N/A')}°")
+                            click.echo(f"X: {data.get('x', 'N/A')}, Y: {data.get('y', 'N/A')}, Z: {data.get('z', 'N/A')}")
+                        click.echo()
+            
+            # Always show basic status from SeestarStatus
+            click.echo("📊 Current Status:")
             click.echo("-" * 40)
             
-            # Check current status from client
             status = client.status
             if status:
-                if status.battery_capacity:
-                    click.echo(f"Battery: {status.battery_capacity}%")
-                if status.temp:
-                    click.echo(f"Temperature: {status.temp}°C")
+                # Basic info
+                if status.battery_capacity is not None:
+                    icon = "🔋" if status.battery_capacity > 20 else "🪫"
+                    click.echo(f"{icon} Battery: {status.battery_capacity}%")
+                if status.charger_status:
+                    click.echo(f"⚡ Charger: {status.charger_status}")
+                if status.temp is not None:
+                    click.echo(f"🌡️ Temperature: {status.temp}°C")
+                
+                # Target & Position
                 if status.target_name:
-                    click.echo(f"Target: {status.target_name}")
+                    click.echo(f"🎯 Target: {status.target_name}")
                 if status.ra is not None and status.dec is not None:
-                    click.echo(f"Coordinates: RA={status.ra:.4f}, Dec={status.dec:.4f}")
+                    click.echo(f"📍 Coordinates: RA={status.ra:.4f}°, Dec={status.dec:.4f}°")
+                if status.dist_deg is not None:
+                    click.echo(f"📏 Distance to target: {status.dist_deg:.2f}°")
+                
+                # Imaging
+                if status.stacked_frame > 0 or status.dropped_frame > 0:
+                    click.echo(f"📸 Frames: {status.stacked_frame} stacked, {status.dropped_frame} dropped")
+                if status.gain is not None:
+                    click.echo(f"📊 Gain: {status.gain}")
+                if status.lp_filter:
+                    click.echo(f"🔴 LP Filter: Active")
+                
+                # Focus
+                if status.focus_position is not None:
+                    click.echo(f"🔍 Focus Position: {status.focus_position}")
+                
+                # Storage
+                if status.freeMB is not None and status.totalMB is not None:
+                    used_percent = ((status.totalMB - status.freeMB) / status.totalMB * 100) if status.totalMB > 0 else 0
+                    click.echo(f"💾 Storage: {status.freeMB:,} MB free / {status.totalMB:,} MB total ({used_percent:.1f}% used)")
+                
+                # Stage/Mode
+                if status.stage:
+                    click.echo(f"🎬 Stage: {status.stage}")
+                
+                # Pattern monitoring (if configured)
+                if status.pattern_match_file:
+                    icon = "✅" if status.pattern_match_found else "❌"
+                    click.echo(f"{icon} Pattern Monitor: {'Found' if status.pattern_match_found else 'Not found'}")
+                    if status.pattern_match_last_check:
+                        click.echo(f"   Last check: {status.pattern_match_last_check}")
+            else:
+                click.echo("No status information available")
+            
+            # Client mode
+            if client.client_mode:
+                click.echo(f"\n🎮 Client Mode: {client.client_mode}")
             
             await client.disconnect()
         except Exception as e:
