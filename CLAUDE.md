@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### CLI Usage
 The library includes a CLI that can be run as a uv tool:
 - Install and run: `uv tool install . && scopinator`
-- Interactive mode: `scopinator --interactive` or `scopinator -i`
+- Interactive mode: `scopinator interactive` or `scopinator -i`
 - Direct command: `scopinator discover --host 192.168.1.100`
 
 Available commands:
@@ -25,9 +25,11 @@ Available commands:
 - `version` - Show version info
 
 Interactive mode features:
-- Tab completion for commands and parameters
-- Command history
-- Built-in help system
+- **Tab completion**: Press Tab to autocomplete commands and options
+- **Command history**: Use ↑/↓ arrow keys to navigate previous commands (saved in ~/.scopinator_history)
+- **Built-in help**: Type `help` for all commands or `help <command>` for specific command details
+- **Special commands**: `clear` to clear screen, `exit` to quit
+- **Smart prompts**: Color-coded prompt with command suggestions for typos
 
 ### Linting and Formatting
 - Use `ruff` for linting and formatting Python code

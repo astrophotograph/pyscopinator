@@ -2,19 +2,18 @@
 
 import asyncio
 import click
-from click_repl import repl
 from loguru import logger
 import sys
 
 
 @click.group(invoke_without_command=True)
 @click.option('--debug', is_flag=True, help='Enable debug logging')
-@click.option('--interactive', '-i', is_flag=True, help='Start interactive mode')
+@click.option('-i', '--interactive', is_flag=True, help='Start interactive mode')
 @click.pass_context
 def cli(ctx, debug, interactive):
     """Scopinator - Control and manage telescopes from the command line.
     
-    Use --interactive or -i to enter interactive mode with autocompletion.
+    Use 'scopinator interactive' or 'scopinator -i' to enter interactive mode.
     """
     if debug:
         logger.remove()
@@ -26,11 +25,14 @@ def cli(ctx, debug, interactive):
     ctx.ensure_object(dict)
     ctx.obj['debug'] = debug
     
-    if interactive or ctx.invoked_subcommand is None:
-        click.echo("Welcome to Scopinator Interactive Mode!")
-        click.echo("Type 'help' to see available commands. Use Tab for autocompletion.")
-        click.echo("Type 'exit' to quit.\n")
-        repl(ctx)
+    # Check if we should enter interactive mode
+    if ctx.invoked_subcommand is None:
+        if interactive:
+            # Call the interactive command directly
+            ctx.invoke(interactive_cmd)
+        else:
+            # Show help if no subcommand and not interactive
+            click.echo(ctx.get_help())
 
 
 @cli.command()
@@ -73,12 +75,16 @@ def discover(ctx, host, port, timeout):
 
 @cli.command()
 @click.argument('host')
-@click.option('--port', '-p', default=4700, help='Port number (default: 4700)')
+@click.option('--port', '-p', default=4700, type=int, help='Port number (default: 4700)')
 @click.option('--timeout', '-t', default=10.0, help='Connection timeout in seconds')
 @click.pass_context
 def connect(ctx, host, port, timeout):
     """Connect to a telescope and save connection info."""
     from scopinator.seestar.client import SeestarClient
+    
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
     
     async def test_connection():
         client = SeestarClient(host=host, port=port)
@@ -108,10 +114,14 @@ def connect(ctx, host, port, timeout):
 
 @cli.command()
 @click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
-@click.option('--port', '-p', help='Port number')
+@click.option('--port', '-p', type=int, help='Port number')
 @click.pass_context
 def status(ctx, host, port):
     """Get current telescope status."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
     host = host or ctx.obj.get('host')
     port = port or ctx.obj.get('port', 4700)
     
@@ -169,10 +179,14 @@ def status(ctx, host, port):
 
 @cli.command()
 @click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
-@click.option('--port', '-p', help='Port number')
+@click.option('--port', '-p', type=int, help='Port number')
 @click.pass_context
 def park(ctx, host, port):
     """Park the telescope."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
     host = host or ctx.obj.get('host')
     port = port or ctx.obj.get('port', 4700)
     
@@ -206,7 +220,7 @@ def park(ctx, host, port):
 @click.argument('ra', type=float)
 @click.argument('dec', type=float)
 @click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
-@click.option('--port', '-p', help='Port number')
+@click.option('--port', '-p', type=int, help='Port number')
 @click.option('--name', '-n', help='Target name')
 @click.pass_context
 def goto(ctx, ra, dec, host, port, name):
@@ -215,6 +229,10 @@ def goto(ctx, ra, dec, host, port, name):
     RA: Right Ascension in degrees (0-360)
     DEC: Declination in degrees (-90 to 90)
     """
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
     host = host or ctx.obj.get('host')
     port = port or ctx.obj.get('port', 4700)
     
@@ -255,11 +273,15 @@ def goto(ctx, ra, dec, host, port, name):
 
 @cli.command()
 @click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
-@click.option('--port', '-p', help='Port number')
-@click.option('--duration', '-d', default=10, help='Stream duration in seconds')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--duration', '-d', default=10, type=int, help='Stream duration in seconds')
 @click.pass_context
 def stream(ctx, host, port, duration):
     """Start live image streaming from the telescope."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
     host = host or ctx.obj.get('host')
     port = port or ctx.obj.get('port', 4700)
     
@@ -294,6 +316,16 @@ def stream(ctx, host, port, duration):
             click.echo(f"❌ Error during streaming: {e}")
     
     asyncio.run(start_stream())
+
+
+@cli.command(name='interactive')
+@click.pass_context  
+def interactive_cmd(ctx):
+    """Enter interactive command mode with autocomplete."""
+    from scopinator.cli.interactive_simple import run_interactive_mode
+    
+    # Run the interactive mode with working autocomplete
+    run_interactive_mode(cli, ctx)
 
 
 @cli.command()
