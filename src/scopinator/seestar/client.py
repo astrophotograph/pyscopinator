@@ -159,13 +159,18 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
             self,
             host: str,
             port: int,
-            event_bus: EventBus,
+            event_bus: EventBus | None = None,
             websocket_manager: Any = None,
             telescope_id: str = None,
             connection_timeout: float = 10.0,
             read_timeout: float = 30.0,
             write_timeout: float = 10.0,
     ):
+        # Create an EventBus if none provided
+        if event_bus is None:
+            from scopinator.util.eventbus import EventBus
+            event_bus = EventBus()
+            
         super().__init__(
             host=host,
             port=port,

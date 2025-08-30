@@ -68,7 +68,8 @@ def custom_repl(ctx, **kwargs):
     def exit_command():
         """Exit the REPL."""
         click.echo("Goodbye!")
-        sys.exit(0)
+        from click_repl import exit as repl_exit
+        repl_exit()
     
     @group.command(name='clear')
     def clear_command():

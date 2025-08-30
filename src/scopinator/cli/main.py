@@ -107,10 +107,12 @@ def connect(ctx, host, port, timeout):
             ctx.obj['host'] = host
             ctx.obj['port'] = port
             
-            # Get basic info
-            device_state = await client.get_device_state()
-            if device_state:
-                click.echo(f"📡 Device State: {device_state}")
+            # Get basic info from status
+            if client.status:
+                if client.status.battery_capacity:
+                    click.echo(f"🔋 Battery: {client.status.battery_capacity}%")
+                if client.status.temp:
+                    click.echo(f"🌡️ Temperature: {client.status.temp}°C")
             
             await client.disconnect()
             return True
@@ -148,26 +150,8 @@ def status(ctx, host, port):
             await client.connect()
             click.echo(f"📡 Connected to {host}:{port}\n")
             
-            # Get various status information
-            device_state = await client.get_device_state()
-            view_state = await client.get_view_state()
-            focus_position = await client.get_focuser_position()
-            disk_info = await client.get_disk_volume()
-            
             click.echo("🔭 Telescope Status:")
             click.echo("-" * 40)
-            
-            if device_state:
-                click.echo(f"Device State: {device_state}")
-            
-            if view_state:
-                click.echo(f"View State: {view_state}")
-            
-            if focus_position is not None:
-                click.echo(f"Focus Position: {focus_position}")
-            
-            if disk_info:
-                click.echo(f"Disk Space: {disk_info}")
             
             # Check current status from client
             status = client.status
@@ -267,11 +251,10 @@ def goto(ctx, ra, dec, host, port, name):
             if response:
                 click.echo(f"✅ Slewing to target initiated")
                 
-                # Wait a moment and check position
+                # Wait a moment and check position from status
                 await asyncio.sleep(2)
-                coords = await client.get_equ_coord()
-                if coords:
-                    click.echo(f"📍 Current position: RA={coords.ra:.4f}, Dec={coords.dec:.4f}")
+                if client.status and client.status.ra is not None and client.status.dec is not None:
+                    click.echo(f"📍 Current position: RA={client.status.ra:.4f}, Dec={client.status.dec:.4f}")
             else:
                 click.echo("⚠️ Goto command sent but no confirmation received")
             

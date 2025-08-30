@@ -85,7 +85,7 @@ def get_network_info():
     return local_ip, broadcast_ip
 
 
-async def discover_seestars(timeout=10):
+async def discover_seestars(timeout: float = 10.0):
     """Discover Seestars using asyncio for asynchronous UDP broadcasting on all network interfaces."""
     global _initial_discovery_complete
     
@@ -108,13 +108,20 @@ async def discover_seestars(timeout=10):
     # Create tasks for parallel discovery on all interfaces
     tasks = []
     for local_ip, broadcast_ip in interfaces:
+        logging.debug(f"Creating discovery task for {local_ip} -> {broadcast_ip}")
         task = discover_on_interface(
             local_ip, broadcast_ip, timeout, discovered_devices, discovered_ips
         )
         tasks.append(task)
 
     # Run all discoveries in parallel
-    await asyncio.gather(*tasks, return_exceptions=True)
+    logging.debug(f"Running {len(tasks)} discovery tasks with timeout {timeout}s")
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Log any exceptions
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            logging.error(f"Discovery task {i} failed: {result}")
 
     # Count new devices found in this scan
     new_devices_count = 0
@@ -143,7 +150,7 @@ async def discover_seestars(timeout=10):
 async def discover_on_interface(
     local_ip: str,
     broadcast_ip: str,
-    timeout: int,
+    timeout: float,
     discovered_devices: list,
     discovered_ips: set,
 ):
