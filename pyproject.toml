@@ -18,8 +18,7 @@ requires = ["uv_build>=0.8.14,<0.9.0"]
 build-backend = "uv_build"
 
 [project.urls]
-Homepage = "https://github.com/astrophotograph/scopinator"
+Homepage = "https://github.com/astrophotograph/pyscopinator"
 
 [tool.uv]
 package = true
-
