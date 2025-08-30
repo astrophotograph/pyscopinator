@@ -2,7 +2,6 @@
 
 import asyncio
 import click
-from click_repl import register_repl
 from loguru import logger
 import sys
 
@@ -29,24 +28,24 @@ def cli(ctx, debug):
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
 
-# Register the REPL command for interactive mode
-register_repl(cli)
+# Register the enhanced REPL command
+from scopinator.cli.repl_enhanced import register_enhanced_repl
+register_enhanced_repl(cli)
 
 
 @cli.command()
 @click.option('--host', '-h', help='Telescope IP address or hostname')
 @click.option('--port', '-p', default=4700, help='Port number (default: 4700)')
-@click.option('--timeout', '-t', default=10.0, help='Discovery timeout in seconds')
+@click.option('--timeout', '-t', default=5.0, help='Discovery timeout in seconds (default: 5)')
 @click.pass_context
 def discover(ctx, host, port, timeout):
     """Discover available telescopes on the network."""
     from scopinator.cli.commands.discovery import discover_telescopes
-    
-    click.echo("🔍 Searching for telescopes...")
+    import time
     
     async def run_discovery():
         if host:
-            click.echo(f"Checking {host}:{port}...")
+            click.echo(f"🔍 Checking {host}:{port}...")
             from scopinator.seestar.connection import SeestarConnection
             conn = SeestarConnection(host=host, port=port)
             try:
@@ -58,17 +57,31 @@ def discover(ctx, host, port, timeout):
                 click.echo(f"❌ No telescope found at {host}:{port}: {e}")
                 return []
         else:
+            # Show progress while discovering
+            click.echo(f"🔍 Searching for telescopes on the network (timeout: {timeout}s)...")
+            click.echo("   This may take a few seconds...")
+            
+            start_time = time.time()
             telescopes = await discover_telescopes(timeout=timeout)
+            elapsed = time.time() - start_time
+            
+            click.echo(f"   Search completed in {elapsed:.1f} seconds")
             return telescopes
     
     telescopes = asyncio.run(run_discovery())
     
     if not telescopes and not host:
-        click.echo("No telescopes found. Make sure your telescope is powered on and connected to the network.")
+        click.echo("\n❌ No telescopes found.")
+        click.echo("   Make sure your telescope is:")
+        click.echo("   • Powered on")
+        click.echo("   • Connected to the same network")
+        click.echo("   • Not already connected to another app")
+        click.echo("\n   Try specifying the IP directly: scopinator discover --host <IP>")
     elif telescopes and not host:
-        click.echo(f"\nFound {len(telescopes)} telescope(s):")
+        click.echo(f"\n✅ Found {len(telescopes)} telescope(s):")
         for idx, (ip, port) in enumerate(telescopes, 1):
             click.echo(f"  {idx}. {ip}:{port}")
+        click.echo("\nTo connect: scopinator connect <IP>")
 
 
 @cli.command()
