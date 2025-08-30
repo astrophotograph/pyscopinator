@@ -1,0 +1,1 @@
+"""Scopinator CLI module."""

@@ -9,6 +9,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Run tests: `pytest tests/`
 - Run specific test: `pytest tests/test_seestar_client.py::TestName`
 
+### CLI Usage
+The library includes a CLI that can be run as a uv tool:
+- Install and run: `uv tool install . && scopinator`
+- Interactive mode: `scopinator --interactive` or `scopinator -i`
+- Direct command: `scopinator discover --host 192.168.1.100`
+
+Available commands:
+- `discover` - Find telescopes on the network
+- `connect` - Connect to a telescope
+- `status` - Get telescope status
+- `park` - Park the telescope
+- `goto` - Slew to RA/Dec coordinates
+- `stream` - Start live image streaming
+- `version` - Show version info
+
+Interactive mode features:
+- Tab completion for commands and parameters
+- Command history
+- Built-in help system
+
 ### Linting and Formatting
 - Use `ruff` for linting and formatting Python code
 - Run linter: `ruff check src/`
