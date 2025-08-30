@@ -2,18 +2,18 @@
 
 import asyncio
 import click
+from click_repl import register_repl
 from loguru import logger
 import sys
 
 
 @click.group(invoke_without_command=True)
 @click.option('--debug', is_flag=True, help='Enable debug logging')
-@click.option('-i', '--interactive', is_flag=True, help='Start interactive mode')
 @click.pass_context
-def cli(ctx, debug, interactive):
+def cli(ctx, debug):
     """Scopinator - Control and manage telescopes from the command line.
     
-    Use 'scopinator interactive' or 'scopinator -i' to enter interactive mode.
+    Use 'scopinator repl' to enter interactive mode with autocompletion.
     """
     if debug:
         logger.remove()
@@ -25,14 +25,12 @@ def cli(ctx, debug, interactive):
     ctx.ensure_object(dict)
     ctx.obj['debug'] = debug
     
-    # Check if we should enter interactive mode
+    # Show help if no subcommand
     if ctx.invoked_subcommand is None:
-        if interactive:
-            # Call the interactive command directly
-            ctx.invoke(interactive_cmd)
-        else:
-            # Show help if no subcommand and not interactive
-            click.echo(ctx.get_help())
+        click.echo(ctx.get_help())
+
+# Register the REPL command for interactive mode
+register_repl(cli)
 
 
 @cli.command()
@@ -321,10 +319,10 @@ def stream(ctx, host, port, duration):
 @cli.command(name='interactive')
 @click.pass_context  
 def interactive_cmd(ctx):
-    """Enter interactive command mode with autocomplete."""
+    """Enter enhanced interactive mode with intellisense and autocomplete."""
     from scopinator.cli.interactive_simple import run_interactive_mode
     
-    # Run the interactive mode with working autocomplete
+    # Run our custom interactive mode with intellisense
     run_interactive_mode(cli, ctx)
 
 
