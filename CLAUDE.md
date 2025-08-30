@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Development
 - Install dependencies: `uv sync`
-- Run tests: `pytest src/tests/`
-- Run specific test: `pytest src/tests/test_seestar_client.py::TestName`
+- Run tests: `pytest tests/`
+- Run specific test: `pytest tests/test_seestar_client.py::TestName`
 
 ### Linting and Formatting
 - Use `ruff` for linting and formatting Python code
@@ -60,6 +60,6 @@ The codebase implements a client library for controlling Seestar telescopes. It 
 - Command-response correlation using unique message IDs
 
 ### Testing
-- Integration tests in `src/tests/test_seestar_integration.py`
-- Unit tests in `src/tests/test_seestar_client.py`
+- Integration tests in `tests/test_seestar_integration.py`
+- Unit tests in `tests/test_seestar_client.py`
 - Tests use asyncio and mock telescope connections
