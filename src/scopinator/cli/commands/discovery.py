@@ -17,20 +17,17 @@ async def discover_telescopes(timeout: float = 10.0) -> List[Tuple[str, int]]:
     """
     try:
         # Try to use the actual discovery module if available
-        from scopinator.seestar.commands.discovery import discover_seestar_devices
+        from scopinator.seestar.commands.discovery import discover_seestars
         
         logger.info(f"Starting telescope discovery with {timeout}s timeout...")
-        discovered = await asyncio.wait_for(
-            discover_seestar_devices(), 
-            timeout=timeout
-        )
+        discovered = await discover_seestars(timeout=timeout)
         
         # Convert to expected format
         telescopes = []
         for device in discovered:
             if isinstance(device, dict):
-                ip = device.get('ip', device.get('host'))
-                port = device.get('port', 4700)
+                ip = device.get('address')
+                port = 4700  # Seestar uses port 4700 for control
                 if ip:
                     telescopes.append((ip, port))
             elif isinstance(device, tuple) and len(device) >= 2:
@@ -38,9 +35,9 @@ async def discover_telescopes(timeout: float = 10.0) -> List[Tuple[str, int]]:
         
         return telescopes
         
-    except ImportError:
+    except ImportError as e:
         # Fallback to network scanning if discovery module not available
-        logger.debug("Discovery module not available, using network scan")
+        logger.debug(f"Discovery module not available ({e}), using network scan")
         return await scan_for_telescopes(timeout)
     except asyncio.TimeoutError:
         logger.info("Discovery timeout reached")
