@@ -469,8 +469,11 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
         logging.trace(f"Processing view state from {self}: {response}")
         if response.result is not None:
             # print(f"view state: {response.result}")
-            view = response.result["View"]
-            self._process_view(view)
+            if "View" in response.result:
+                view = response.result["View"]
+                self._process_view(view)
+            else:
+                logging.warning(f"No 'View' field in view state response from {self}: {response.result}")
         else:
             logging.error(f"Error while processing view state from {self}: {response}")
 

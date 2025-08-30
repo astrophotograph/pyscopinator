@@ -25,6 +25,7 @@ dependencies = [
     "numpy-typing>=1.1.1",
     "opencv-python>=4.11.0.86",
     "psutil>=7.0.0",
+    "pillow>=11.3.0",
 ]
 
 [project.scripts]
@@ -39,3 +40,18 @@ Homepage = "https://github.com/astrophotograph/pyscopinator"
 
 [tool.uv]
 package = true
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "hardware: marks tests that require real hardware or mock hardware server",
+]
+testpaths = ["tests"]
+# By default, exclude hardware tests
+addopts = "-m 'not hardware'"
