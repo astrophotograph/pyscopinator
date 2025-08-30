@@ -59,6 +59,14 @@ async def scan_for_telescopes(timeout: float = 10.0) -> List[Tuple[str, int]]:
     telescopes = []
     common_ports = [4700, 4800, 4900]  # Common Seestar ports
     
+    # Limit concurrent connections to avoid "Too many open files" error
+    max_concurrent = 20  # Reduced to be more conservative
+    semaphore = asyncio.Semaphore(max_concurrent)
+    
+    async def check_with_limit(host: str, port: int) -> Tuple[str, int] | None:
+        async with semaphore:
+            return await check_telescope(host, port, timeout=1.0)
+    
     # Get local network range
     try:
         # Get local IP
@@ -71,12 +79,12 @@ async def scan_for_telescopes(timeout: float = 10.0) -> List[Tuple[str, int]]:
         ip_parts = local_ip.split('.')
         base_ip = '.'.join(ip_parts[:3])
         
-        # Create tasks to check multiple IPs concurrently
+        # Create tasks to check multiple IPs concurrently (with limit)
         tasks = []
         for i in range(1, 255):
             ip = f"{base_ip}.{i}"
             for port in common_ports:
-                tasks.append(check_telescope(ip, port, timeout=1.0))
+                tasks.append(check_with_limit(ip, port))
         
         # Run with overall timeout
         results = await asyncio.wait_for(
@@ -97,13 +105,26 @@ async def scan_for_telescopes(timeout: float = 10.0) -> List[Tuple[str, int]]:
 
 async def check_telescope(host: str, port: int, timeout: float = 1.0) -> Tuple[str, int] | None:
     """Check if a telescope is available at the given host and port."""
+    conn = None
     try:
         from scopinator.seestar.connection import SeestarConnection
         
-        conn = SeestarConnection(host=host, port=port, connection_timeout=timeout)
-        await conn.open()
-        await conn.close()
-        logger.info(f"Found telescope at {host}:{port}")
-        return (host, port)
+        # Temporarily disable loguru logging during discovery scan
+        logger.disable("scopinator.seestar.connection")
+        try:
+            conn = SeestarConnection(host=host, port=port, connection_timeout=timeout)
+            await conn.open()
+            logger.enable("scopinator.seestar.connection")
+            logger.info(f"Found telescope at {host}:{port}")
+            return (host, port)
+        finally:
+            logger.enable("scopinator.seestar.connection")
     except:
         return None
+    finally:
+        # Always close the connection to avoid file descriptor leaks
+        if conn:
+            try:
+                await conn.close()
+            except:
+                pass
