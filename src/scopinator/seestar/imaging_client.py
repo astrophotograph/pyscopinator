@@ -262,6 +262,18 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
     async def connect(self):
         await self.connection.open()
         self.is_connected = True
+        
+        # Cancel any existing reader task before starting a new one
+        # This prevents duplicate readers after reconnection
+        if self.reader_task:
+            logging.debug(f"Canceling existing reader task before reconnect for {self}")
+            self.reader_task.cancel()
+            try:
+                await self.reader_task
+            except asyncio.CancelledError:
+                pass
+            self.reader_task = None
+        
         self.status.reset()
 
         self._last_successful_read = time.time()
@@ -477,9 +489,23 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                         self._reconnect_in_progress = True
                         logging.info(f"Connection monitor initiating reconnection for {self}")
                         try:
-                            # The connection layer will handle the actual reconnection with backoff
+                            # Ensure clean state before reconnection
+                            # Cancel the reader task if it's still running
+                            if self.reader_task and not self.reader_task.done():
+                                logging.debug(f"Canceling reader task before reconnection for {self}")
+                                self.reader_task.cancel()
+                                try:
+                                    await self.reader_task
+                                except asyncio.CancelledError:
+                                    pass
+                                self.reader_task = None
+                            
+                            # Reconnect and restart the reader task
                             await self.connection.open()
-                            logging.info(f"Connection monitor successfully reconnected {self}")
+                            
+                            # Restart the reader task after successful reconnection
+                            self.reader_task = asyncio.create_task(self._reader())
+                            logging.info(f"Connection monitor successfully reconnected {self} and restarted reader task")
                         except Exception as e:
                             logging.warning(f"Connection monitor failed to reconnect {self}: {e}")
                         finally:
