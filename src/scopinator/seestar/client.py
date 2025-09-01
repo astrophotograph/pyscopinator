@@ -84,6 +84,9 @@ class SeestarStatus(BaseModel):
     dist_deg: float | None = None # Distance from the telescope to the target in degrees
     percent: float | None = None
     balance_sensor: BalanceSensorInfo | None = None
+    device_state: dict | None = None  # Full device state info including mount, station, etc.
+    pi_status: dict | None = None  # Pi status info including battery temp
+    last_device_state_update: float | None = None  # Timestamp of last device state update
 
     def reset(self):
         self.temp = None
@@ -105,6 +108,9 @@ class SeestarStatus(BaseModel):
         self.ra = None
         self.dec = None
         self.stage = None
+        self.device_state = None
+        self.pi_status = None
+        self.last_device_state_update = None
 
 
 class ParsedEvent(BaseModel):
@@ -148,6 +154,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
     connection_timeout: float = 10.0
     read_timeout: float = 30.0
     write_timeout: float = 10.0
+    device_state_refresh_interval: float = 30.0  # Refresh device state every 30 seconds
     
     # Connection monitoring
     connection_monitor_task: asyncio.Task | None = None
@@ -338,12 +345,28 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
     async def _view_refresher(self):
         """Background task that refreshes the view state periodically."""
         logging.info(f"Starting view refresher task for {self}")
+        last_device_state_update = 0
         while True:
             if self.is_connected:
                 await self.refresh_view_state()
                 response = await self.send_and_recv(GetDiskVolume())
                 self.status.freeMB = response.result.get("freeMB")
                 self.status.totalMB = response.result.get("totalMB")
+                
+                # Refresh device state every 30 seconds
+                import time
+                current_time = time.time()
+                if current_time - last_device_state_update > 30:
+                    try:
+                        device_response = await self.send_and_recv(GetDeviceState())
+                        if device_response and device_response.result:
+                            # Store the full device state
+                            self.status.device_state = device_response.result
+                            self.status.last_device_state_update = current_time
+                            last_device_state_update = current_time
+                            logging.trace(f"Device state updated for {self}")
+                    except Exception as e:
+                        logging.error(f"Failed to refresh device state: {e}")
             await asyncio.sleep(15)
 
     def _update_client_mode(self, stage: str, state: str = "unknown", mode: str | None = None):
@@ -645,6 +668,16 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                         self.status.charge_online = pi_status.charge_online
                     if pi_status.battery_capacity is not None:
                         self.status.battery_capacity = pi_status.battery_capacity
+                    
+                    # Store pi_status for battery temperature and other fields
+                    self.status.pi_status = {
+                        'battery_temp': getattr(pi_status, 'battery_temp', None),
+                        'battery_temp_type': getattr(pi_status, 'battery_temp_type', None),
+                        'temp': pi_status.temp,
+                        'charger_status': pi_status.charger_status,
+                        'charge_online': pi_status.charge_online,
+                        'battery_capacity': pi_status.battery_capacity
+                    }
                 case "Stack":
                     logging.trace(f"Updating stacked frame and dropped frame: {parsed}")
                     if self.status.stacked_frame is not None:
