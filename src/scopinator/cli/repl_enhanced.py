@@ -29,10 +29,13 @@ def custom_repl(ctx, **kwargs):
         # Group commands by category
         categories = {
             'Discovery': ['discover'],
-            'Connection': ['connect', 'status'],
-            'Control': ['park', 'goto'],
-            'Imaging': ['stream'],
-            'System': ['version', 'repl', 'interactive'],
+            'Connection': ['connect', 'status', 'test-connection'],
+            'Control': ['park', 'goto', 'coordinates', 'start-autofocus', 'stop-autofocus', 'start-solve'],
+            'Imaging': ['stream', 'camera-info', 'camera-state', 'stack-info', 'stack-setting'],
+            'Information': ['disk-volume', 'get-time', 'user-location', 'focus-position', 'solve-result', 
+                          'device-state', 'get-setting', 'view-state'],
+            'Filter Wheel': ['wheel-state', 'wheel-position', 'wheel-setting'],
+            'System': ['version', 'repl', 'interactive', 'reboot'],
             'REPL': ['help', 'exit', 'clear']
         }
         

@@ -4,6 +4,7 @@ import asyncio
 import click
 from loguru import logger
 import sys
+import json
 
 
 @click.group(invoke_without_command=True)
@@ -472,6 +473,1156 @@ def version(ctx):
             click.echo(f"  Format: CalVer (YYYY.MM.PATCH)")
         except:
             click.echo("Scopinator version: development")
+
+
+# ============= Simple commands without parameters =============
+
+@cli.command(name='camera-info')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.pass_context
+def camera_info(ctx, host, port):
+    """Get camera information (chip size, pixel size, etc)."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetCameraInfo
+    
+    async def get_camera_info():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            response = await client.send_and_recv(GetCameraInfo())
+            if response and response.result:
+                info = response.result
+                click.echo("📷 Camera Information:")
+                click.echo("-" * 40)
+                if 'chip_size' in info:
+                    # Handle both tuple and dict formats
+                    if isinstance(info['chip_size'], (list, tuple)):
+                        click.echo(f"Chip Size: {info['chip_size'][0]}x{info['chip_size'][1]}")
+                    else:
+                        click.echo(f"Chip Size: {info['chip_size']['width']}x{info['chip_size']['height']}")
+                if 'pixel_size_um' in info:
+                    click.echo(f"Pixel Size: {info['pixel_size_um']} μm")
+                if 'unity_gain' in info:
+                    click.echo(f"Unity Gain: {info['unity_gain']}")
+                if 'debayer_pattern' in info:
+                    click.echo(f"Debayer Pattern: {info['debayer_pattern']}")
+                if 'has_cooler' in info:
+                    click.echo(f"Has Cooler: {'Yes' if info['has_cooler'] else 'No'}")
+                if 'is_color' in info:
+                    click.echo(f"Color Camera: {'Yes' if info['is_color'] else 'No'}")
+                if 'is_usb3_host' in info:
+                    click.echo(f"USB3 Host: {'Yes' if info['is_usb3_host'] else 'No'}")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting camera info: {e}")
+    
+    asyncio.run(get_camera_info())
+
+
+@cli.command(name='disk-volume')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.pass_context
+def disk_volume(ctx, host, port):
+    """Get disk volume information."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetDiskVolume
+    
+    async def get_disk_volume():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            response = await client.send_and_recv(GetDiskVolume())
+            if response and response.result:
+                info = response.result
+                click.echo("💾 Disk Volume:")
+                click.echo("-" * 40)
+                if 'freeMB' in info and 'totalMB' in info:
+                    free_mb = info['freeMB']
+                    total_mb = info['totalMB']
+                    used_mb = total_mb - free_mb
+                    used_percent = (used_mb / total_mb * 100) if total_mb > 0 else 0
+                    click.echo(f"Free: {free_mb:,} MB")
+                    click.echo(f"Total: {total_mb:,} MB")
+                    click.echo(f"Used: {used_mb:,} MB ({used_percent:.1f}%)")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting disk volume: {e}")
+    
+    asyncio.run(get_disk_volume())
+
+
+@cli.command(name='get-time')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.pass_context
+def get_time(ctx, host, port):
+    """Get current time from the telescope."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetTime
+    
+    async def get_telescope_time():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            response = await client.send_and_recv(GetTime())
+            if response and response.result:
+                t = response.result
+                click.echo("🕐 Telescope Time:")
+                click.echo("-" * 40)
+                if all(k in t for k in ['year', 'mon', 'day', 'hour', 'min', 'sec']):
+                    click.echo(f"Date: {t['year']:04d}-{t['mon']:02d}-{t['day']:02d}")
+                    click.echo(f"Time: {t['hour']:02d}:{t['min']:02d}:{t['sec']:02d}")
+                if 'time_zone' in t:
+                    click.echo(f"Timezone: {t['time_zone']}")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting time: {e}")
+    
+    asyncio.run(get_telescope_time())
+
+
+@cli.command(name='user-location')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.pass_context
+def user_location(ctx, host, port):
+    """Get user location from the telescope."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetUserLocation
+    
+    async def get_user_location():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            response = await client.send_and_recv(GetUserLocation())
+            if response and response.result:
+                location = response.result
+                click.echo("📍 User Location:")
+                click.echo("-" * 40)
+                if 'lat' in location and 'lon' in location:
+                    click.echo(f"Latitude: {location['lat']:.6f}°")
+                    click.echo(f"Longitude: {location['lon']:.6f}°")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting user location: {e}")
+    
+    asyncio.run(get_user_location())
+
+
+@cli.command(name='focus-position')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.pass_context
+def focus_position(ctx, host, port):
+    """Get current focuser position."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetFocuserPosition
+    
+    async def get_focus_position():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            response = await client.send_and_recv(GetFocuserPosition())
+            if response and response.result is not None:
+                focus = response.result
+                click.echo("🔍 Focuser Position:")
+                click.echo("-" * 40)
+                # Handle both integer response and dict response
+                if isinstance(focus, (int, float)):
+                    click.echo(f"Current Position: {focus}")
+                elif isinstance(focus, dict):
+                    if 'step' in focus:
+                        click.echo(f"Current Position: {focus['step']}")
+                    if 'max_step' in focus:
+                        click.echo(f"Maximum Position: {focus['max_step']}")
+                    if 'state' in focus:
+                        click.echo(f"State: {focus['state']}")
+                    if 'position' in focus:
+                        click.echo(f"Current Position: {focus['position']}")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting focus position: {e}")
+    
+    asyncio.run(get_focus_position())
+
+
+@cli.command(name='coordinates')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--type', '-t', type=click.Choice(['equ', 'radec', 'horiz', 'all']), default='all', help='Coordinate type to get')
+@click.pass_context
+def coordinates(ctx, host, port, type):
+    """Get telescope coordinates (equatorial, RA/Dec, or horizontal)."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import ScopeGetEquCoord, ScopeGetRaDecCoord, ScopeGetHorizCoord
+    
+    async def get_coordinates():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            
+            click.echo("📐 Telescope Coordinates:")
+            click.echo("-" * 40)
+            
+            if type in ['equ', 'all']:
+                response = await client.send_and_recv(ScopeGetEquCoord())
+                if response and response.result:
+                    coords = response.result
+                    if 'ra' in coords and 'dec' in coords:
+                        # RA is returned in hours, convert to degrees for display
+                        ra_deg = coords['ra'] * 15.0
+                        click.echo(f"Equatorial: RA={ra_deg:.4f}°, Dec={coords['dec']:.4f}°")
+            
+            if type in ['radec', 'all']:
+                response = await client.send_and_recv(ScopeGetRaDecCoord())
+                if response and response.result:
+                    coords = response.result
+                    if 'ra' in coords and 'dec' in coords:
+                        click.echo(f"RA/Dec: RA={coords['ra']:.4f}, Dec={coords['dec']:.4f}")
+            
+            if type in ['horiz', 'all']:
+                response = await client.send_and_recv(ScopeGetHorizCoord())
+                if response and response.result:
+                    coords = response.result
+                    if 'az' in coords and 'alt' in coords:
+                        click.echo(f"Horizontal: Az={coords['az']:.4f}°, Alt={coords['alt']:.4f}°")
+            
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting coordinates: {e}")
+    
+    asyncio.run(get_coordinates())
+
+
+@cli.command(name='start-autofocus')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.pass_context
+def start_autofocus(ctx, host, port):
+    """Start automatic focusing."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import StartAutoFocus
+    
+    async def start_af():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            click.echo("🔍 Starting autofocus...")
+            response = await client.send_and_recv(StartAutoFocus())
+            if response:
+                click.echo("✅ Autofocus started")
+            else:
+                click.echo("⚠️ Autofocus command sent but no confirmation received")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error starting autofocus: {e}")
+    
+    asyncio.run(start_af())
+
+
+@cli.command(name='stop-autofocus')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.pass_context
+def stop_autofocus(ctx, host, port):
+    """Stop automatic focusing."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import StopAutoFocus
+    
+    async def stop_af():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            click.echo("🔍 Stopping autofocus...")
+            response = await client.send_and_recv(StopAutoFocus())
+            if response:
+                click.echo("✅ Autofocus stopped")
+            else:
+                click.echo("⚠️ Stop autofocus command sent but no confirmation received")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error stopping autofocus: {e}")
+    
+    asyncio.run(stop_af())
+
+
+@cli.command(name='start-solve')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.pass_context
+def start_solve(ctx, host, port):
+    """Start plate solving."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import StartSolve
+    
+    async def start_solving():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            click.echo("🔭 Starting plate solve...")
+            response = await client.send_and_recv(StartSolve())
+            if response:
+                click.echo("✅ Plate solving started")
+            else:
+                click.echo("⚠️ Solve command sent but no confirmation received")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error starting solve: {e}")
+    
+    asyncio.run(start_solving())
+
+
+@cli.command(name='solve-result')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--last', is_flag=True, help='Get last solve result instead of current')
+@click.pass_context
+def solve_result(ctx, host, port, last):
+    """Get plate solve result."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetSolveResult, GetLastSolveResult
+    
+    async def get_solve_result():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            command = GetLastSolveResult() if last else GetSolveResult()
+            response = await client.send_and_recv(command)
+            if response and response.result:
+                result = response.result
+                result_type = "Last Solve" if last else "Current Solve"
+                click.echo(f"🔭 {result_type} Result:")
+                click.echo("-" * 40)
+                if 'ra' in result and 'dec' in result:
+                    click.echo(f"Coordinates: RA={result['ra']:.4f}, Dec={result['dec']:.4f}")
+                if 'pixel_scale' in result:
+                    click.echo(f"Pixel Scale: {result['pixel_scale']:.2f} arcsec/pixel")
+                if 'rotation' in result:
+                    click.echo(f"Rotation: {result['rotation']:.2f}°")
+                if 'success' in result:
+                    status = "✅ Success" if result['success'] else "❌ Failed"
+                    click.echo(f"Status: {status}")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting solve result: {e}")
+    
+    asyncio.run(get_solve_result())
+
+
+@cli.command(name='test-connection')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.pass_context
+def test_connection(ctx, host, port):
+    """Test connection to the telescope."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import TestConnection
+    
+    async def test_conn():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            click.echo(f"🔌 Testing connection to {host}:{port}...")
+            response = await client.send_and_recv(TestConnection())
+            if response:
+                click.echo("✅ Connection test successful")
+            else:
+                click.echo("❌ Connection test failed")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error testing connection: {e}")
+    
+    asyncio.run(test_conn())
+
+
+@cli.command(name='camera-state')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.pass_context
+def camera_state(ctx, host, port):
+    """Get current camera state."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetCameraState
+    
+    async def get_camera_state():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            response = await client.send_and_recv(GetCameraState())
+            if response and response.result:
+                state = response.result
+                click.echo("📷 Camera State:")
+                click.echo("-" * 40)
+                if 'state' in state:
+                    click.echo(f"State: {state['state']}")
+                if 'name' in state:
+                    click.echo(f"Name: {state['name']}")
+                if 'path' in state:
+                    click.echo(f"Path: {state['path']}")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting camera state: {e}")
+    
+    asyncio.run(get_camera_state())
+
+
+@cli.command(name='device-state')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--keys', '-k', multiple=True, help='Specific keys to retrieve (e.g., device, pi_status, mount)')
+@click.option('--all', 'show_all', is_flag=True, help='Show all available data without filtering')
+@click.option('--json', 'as_json', is_flag=True, help='Output raw JSON data')
+@click.pass_context
+def device_state(ctx, host, port, keys, show_all, as_json):
+    """Get comprehensive device state information."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetDeviceState
+    
+    async def get_device_state():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            # If specific keys requested, use them
+            if keys:
+                cmd = GetDeviceState(params={"keys": list(keys)})
+            else:
+                cmd = GetDeviceState()
+            
+            response = await client.send_and_recv(cmd)
+            if response and response.result:
+                state = response.result
+                
+                # Output as JSON if requested
+                if as_json:
+                    click.echo(json.dumps(state, indent=2))
+                    await client.disconnect()
+                    return
+                click.echo("📱 Device State:")
+                click.echo("-" * 40)
+                
+                # Show device info if present
+                if 'device' in state:
+                    dev = state['device']
+                    click.echo("\n🔭 Device:")
+                    if 'name' in dev:
+                        click.echo(f"  Name: {dev['name']}")
+                    if 'firmware_ver_string' in dev:
+                        click.echo(f"  Firmware: {dev['firmware_ver_string']}")
+                    if 'sn' in dev:
+                        click.echo(f"  Serial: {dev['sn']}")
+                    if 'product_model' in dev:
+                        click.echo(f"  Model: {dev['product_model']}")
+                
+                # Show pi_status if present
+                if 'pi_status' in state:
+                    pi = state['pi_status']
+                    click.echo("\n⚡ Status:")
+                    if 'battery_capacity' in pi:
+                        click.echo(f"  Battery: {pi['battery_capacity']}%")
+                    if 'temp' in pi:
+                        click.echo(f"  Temperature: {pi['temp']}°C")
+                    if 'charger_status' in pi:
+                        click.echo(f"  Charger: {pi['charger_status']}")
+                
+                # Show mount if present
+                if 'mount' in state:
+                    mount = state['mount']
+                    click.echo("\n🎯 Mount:")
+                    if 'tracking' in mount:
+                        click.echo(f"  Tracking: {'Yes' if mount['tracking'] else 'No'}")
+                    if 'equ_mode' in mount:
+                        click.echo(f"  Equatorial Mode: {'Yes' if mount['equ_mode'] else 'No'}")
+                
+                # Show focuser if present
+                if 'focuser' in state:
+                    focuser = state['focuser']
+                    click.echo("\n🔍 Focuser:")
+                    if 'step' in focuser:
+                        click.echo(f"  Position: {focuser['step']}")
+                    if 'max_step' in focuser:
+                        click.echo(f"  Max Position: {focuser['max_step']}")
+                    if 'state' in focuser:
+                        click.echo(f"  State: {focuser['state']}")
+                
+                # Show storage if present
+                if 'storage' in state:
+                    storage = state['storage']
+                    click.echo("\n💾 Storage:")
+                    if 'cur_storage' in storage:
+                        click.echo(f"  Current: {storage['cur_storage']}")
+                    if 'storage_volume' in storage:
+                        for vol in storage['storage_volume']:
+                            if 'name' in vol:
+                                click.echo(f"  {vol['name']}: {vol.get('freeMB', 0):,} MB free")
+                
+                # Show all data if requested
+                if show_all:
+                    click.echo("\n📋 All Device State Data:")
+                    click.echo("-" * 40)
+                    
+                    # Show any sections not already displayed
+                    shown_keys = {'device', 'pi_status', 'mount', 'focuser', 'storage'}
+                    for key in sorted(state.keys()):
+                        if key not in shown_keys:
+                            click.echo(f"\n{key}:")
+                            value = state[key]
+                            if isinstance(value, dict):
+                                for k, v in value.items():
+                                    click.echo(f"  {k}: {v}")
+                            elif isinstance(value, list):
+                                for i, item in enumerate(value):
+                                    if isinstance(item, dict):
+                                        click.echo(f"  [{i}]:")
+                                        for k, v in item.items():
+                                            click.echo(f"    {k}: {v}")
+                                    else:
+                                        click.echo(f"  [{i}]: {item}")
+                            else:
+                                click.echo(f"  {value}")
+                else:
+                    # Show any other keys
+                    shown_keys = {'device', 'pi_status', 'mount', 'focuser', 'storage'}
+                    other_keys = set(state.keys()) - shown_keys
+                    if other_keys:
+                        click.echo(f"\n📊 Other data available: {', '.join(sorted(other_keys))}")
+                        click.echo("  Use --keys to retrieve specific sections or --all to see everything")
+                    
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting device state: {e}")
+    
+    asyncio.run(get_device_state())
+
+
+@cli.command(name='get-setting')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--all', 'show_all', is_flag=True, help='Show all settings with raw values')
+@click.option('--json', 'as_json', is_flag=True, help='Output raw JSON data')
+@click.pass_context
+def get_setting(ctx, host, port, show_all, as_json):
+    """Get telescope settings."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetSetting
+    
+    async def get_settings():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            response = await client.send_and_recv(GetSetting())
+            if response and response.result:
+                settings = response.result
+                
+                # Output as JSON if requested
+                if as_json:
+                    click.echo(json.dumps(settings, indent=2))
+                    await client.disconnect()
+                    return
+                click.echo("⚙️ Telescope Settings:")
+                click.echo("-" * 40)
+                
+                # Display settings in organized groups
+                if 'lang' in settings:
+                    click.echo(f"Language: {settings['lang']}")
+                if 'temp_unit' in settings:
+                    click.echo(f"Temperature Unit: {settings['temp_unit']}")
+                if 'beep_volume' in settings:
+                    click.echo(f"Beep Volume: {settings['beep_volume']}")
+                
+                # Auto settings
+                click.echo("\n🔄 Auto Settings:")
+                if 'auto_power_off' in settings:
+                    click.echo(f"  Auto Power Off: {'Enabled' if settings['auto_power_off'] else 'Disabled'}")
+                if 'auto_af' in settings:
+                    click.echo(f"  Auto Focus: {'Enabled' if settings['auto_af'] else 'Disabled'}")
+                if 'auto_3ppa_calib' in settings:
+                    click.echo(f"  Auto 3PPA Calibration: {'Enabled' if settings['auto_3ppa_calib'] else 'Disabled'}")
+                
+                # Stack settings
+                if 'stack_lenhance' in settings:
+                    click.echo("\n📸 Stack Settings:")
+                    click.echo(f"  Light Enhancement: {'Enabled' if settings['stack_lenhance'] else 'Disabled'}")
+                if 'stack_after_goto' in settings:
+                    click.echo(f"  Stack After Goto: {'Enabled' if settings['stack_after_goto'] else 'Disabled'}")
+                
+                # Heater settings
+                if 'heater_enable' in settings:
+                    click.echo("\n🌡️ Heater Settings:")
+                    click.echo(f"  Heater: {'Enabled' if settings['heater_enable'] else 'Disabled'}")
+                if 'expt_heater_enable' in settings:
+                    click.echo(f"  Expert Heater: {'Enabled' if settings['expt_heater_enable'] else 'Disabled'}")
+                
+                # Other settings
+                if 'focal_pos' in settings:
+                    click.echo(f"\n🔍 Focal Position: {settings['focal_pos']}")
+                if 'factory_focal_pos' in settings:
+                    click.echo(f"Factory Focal Position: {settings['factory_focal_pos']}")
+                
+                # Show all settings if requested
+                if show_all:
+                    click.echo("\n📋 All Settings (raw values):")
+                    click.echo("-" * 40)
+                    for key, value in sorted(settings.items()):
+                        # Format the value based on type
+                        if isinstance(value, bool):
+                            value_str = "Enabled" if value else "Disabled"
+                        elif isinstance(value, dict):
+                            value_str = str(value)
+                        elif isinstance(value, list):
+                            value_str = str(value)
+                        else:
+                            value_str = str(value)
+                        click.echo(f"  {key}: {value_str}")
+                else:
+                    # Show count of total settings
+                    click.echo(f"\n📊 Total settings available: {len(settings)}")
+                    click.echo("   Use --all to see all raw values")
+                    
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting settings: {e}")
+    
+    asyncio.run(get_settings())
+
+
+@cli.command(name='view-state')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--json', 'as_json', is_flag=True, help='Output raw JSON data')
+@click.pass_context
+def view_state(ctx, host, port, as_json):
+    """Get current view state."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetViewState
+    
+    async def get_view_state():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            response = await client.send_and_recv(GetViewState())
+            if response and response.result:
+                state = response.result
+                
+                # Output as JSON if requested
+                if as_json:
+                    click.echo(json.dumps(state, indent=2))
+                else:
+                    click.echo("👁️ View State:")
+                    click.echo("-" * 40)
+                    
+                    # Handle nested View structure
+                    if 'View' in state:
+                        view = state['View']
+                        if 'state' in view:
+                            click.echo(f"State: {view['state']}")
+                        if 'stage' in view:
+                            click.echo(f"Stage: {view['stage']}")
+                        if 'target_name' in view:
+                            click.echo(f"Target: {view['target_name']}")
+                        if 'target_ra_dec' in view:
+                            ra, dec = view['target_ra_dec']
+                            click.echo(f"Coordinates: RA={ra:.4f}, Dec={dec:.4f}")
+                        if 'mode' in view:
+                            click.echo(f"Mode: {view['mode']}")
+                        if 'target_type' in view:
+                            click.echo(f"Target Type: {view['target_type']}")
+                        if 'lp_filter' in view:
+                            click.echo(f"LP Filter: {'Yes' if view['lp_filter'] else 'No'}")
+                        if 'lapse_ms' in view:
+                            lapse_sec = view['lapse_ms'] / 1000
+                            click.echo(f"Elapsed Time: {lapse_sec:.1f} seconds")
+                        
+                        # Show RTSP info if present
+                        if 'RTSP' in view:
+                            rtsp = view['RTSP']
+                            click.echo(f"\nRTSP Stream:")
+                            if 'state' in rtsp:
+                                click.echo(f"  State: {rtsp['state']}")
+                            if 'port' in rtsp:
+                                click.echo(f"  Port: {rtsp['port']}")
+                    else:
+                        # Fallback for flat structure
+                        if 'view_state' in state:
+                            click.echo(f"State: {state['view_state']}")
+                        if 'stage' in state:
+                            click.echo(f"Stage: {state['stage']}")
+                        if 'target_name' in state:
+                            click.echo(f"Target: {state['target_name']}")
+                        if 'ra' in state and 'dec' in state:
+                            click.echo(f"Coordinates: RA={state['ra']:.4f}, Dec={state['dec']:.4f}")
+                        if 'mode' in state:
+                            click.echo(f"Mode: {state['mode']}")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting view state: {e}")
+    
+    asyncio.run(get_view_state())
+
+
+@cli.command(name='stack-info')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--json', 'as_json', is_flag=True, help='Output raw JSON data')
+@click.pass_context
+def stack_info(ctx, host, port, as_json):
+    """Get stack information."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetStackInfo
+    
+    async def get_stack_info():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            response = await client.send_and_recv(GetStackInfo())
+            if response and response.result:
+                info = response.result
+                
+                # Output as JSON if requested
+                if as_json:
+                    click.echo(json.dumps(info, indent=2))
+                else:
+                    click.echo("📚 Stack Information:")
+                    click.echo("-" * 40)
+                    if 'stacked_frame' in info:
+                        click.echo(f"Stacked Frames: {info['stacked_frame']}")
+                    if 'dropped_frame' in info:
+                        click.echo(f"Dropped Frames: {info['dropped_frame']}")
+                    if 'total_exp_time' in info:
+                        click.echo(f"Total Exposure Time: {info['total_exp_time']} ms")
+                    if 'stack_count' in info:
+                        click.echo(f"Stack Count: {info['stack_count']}")
+                    
+                    # Show all other fields
+                    shown_keys = {'stacked_frame', 'dropped_frame', 'total_exp_time', 'stack_count'}
+                    for key in sorted(info.keys()):
+                        if key not in shown_keys:
+                            click.echo(f"{key}: {info[key]}")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting stack info: {e}")
+    
+    asyncio.run(get_stack_info())
+
+
+@cli.command(name='stack-setting')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--json', 'as_json', is_flag=True, help='Output raw JSON data')
+@click.pass_context
+def stack_setting(ctx, host, port, as_json):
+    """Get stack settings."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetStackSetting
+    
+    async def get_stack_setting():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            response = await client.send_and_recv(GetStackSetting())
+            if response and response.result:
+                settings = response.result
+                
+                # Output as JSON if requested
+                if as_json:
+                    click.echo(json.dumps(settings, indent=2))
+                else:
+                    click.echo("📸 Stack Settings:")
+                    click.echo("-" * 40)
+                    for key, value in sorted(settings.items()):
+                        if isinstance(value, bool):
+                            value_str = "Enabled" if value else "Disabled"
+                        else:
+                            value_str = str(value)
+                        click.echo(f"{key}: {value_str}")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting stack settings: {e}")
+    
+    asyncio.run(get_stack_setting())
+
+
+@cli.command(name='wheel-state')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--json', 'as_json', is_flag=True, help='Output raw JSON data')
+@click.pass_context
+def wheel_state(ctx, host, port, as_json):
+    """Get filter wheel state."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetWheelState
+    
+    async def get_wheel_state():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            response = await client.send_and_recv(GetWheelState())
+            if response and response.result:
+                state = response.result
+                
+                # Output as JSON if requested
+                if as_json:
+                    click.echo(json.dumps(state, indent=2))
+                else:
+                    click.echo("☸️ Filter Wheel State:")
+                    click.echo("-" * 40)
+                    if 'state' in state:
+                        click.echo(f"State: {state['state']}")
+                    if 'position' in state:
+                        click.echo(f"Position: {state['position']}")
+                    if 'filter' in state:
+                        click.echo(f"Current Filter: {state['filter']}")
+                    
+                    # Show all other fields
+                    shown_keys = {'state', 'position', 'filter'}
+                    for key in sorted(state.keys()):
+                        if key not in shown_keys:
+                            click.echo(f"{key}: {state[key]}")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting wheel state: {e}")
+    
+    asyncio.run(get_wheel_state())
+
+
+@cli.command(name='wheel-position')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--json', 'as_json', is_flag=True, help='Output raw JSON data')
+@click.pass_context
+def wheel_position(ctx, host, port, as_json):
+    """Get filter wheel position."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetWheelPosition
+    
+    async def get_wheel_position():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            response = await client.send_and_recv(GetWheelPosition())
+            if response and response.result is not None:
+                position = response.result
+                
+                # Output as JSON if requested
+                if as_json:
+                    click.echo(json.dumps({"position": position}, indent=2))
+                else:
+                    click.echo("☸️ Filter Wheel Position:")
+                    click.echo("-" * 40)
+                    # Handle both integer response and dict response
+                    if isinstance(position, (int, float)):
+                        click.echo(f"Current Position: {position}")
+                    elif isinstance(position, dict):
+                        for key, value in position.items():
+                            click.echo(f"{key}: {value}")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting wheel position: {e}")
+    
+    asyncio.run(get_wheel_position())
+
+
+@cli.command(name='wheel-setting')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--json', 'as_json', is_flag=True, help='Output raw JSON data')
+@click.pass_context
+def wheel_setting(ctx, host, port, as_json):
+    """Get filter wheel settings."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import GetWheelSetting
+    
+    async def get_wheel_setting():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            response = await client.send_and_recv(GetWheelSetting())
+            if response and response.result:
+                settings = response.result
+                
+                # Output as JSON if requested
+                if as_json:
+                    click.echo(json.dumps(settings, indent=2))
+                else:
+                    click.echo("☸️ Filter Wheel Settings:")
+                    click.echo("-" * 40)
+                    for key, value in sorted(settings.items()):
+                        if isinstance(value, bool):
+                            value_str = "Enabled" if value else "Disabled"
+                        else:
+                            value_str = str(value)
+                        click.echo(f"{key}: {value_str}")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error getting wheel settings: {e}")
+    
+    asyncio.run(get_wheel_setting())
+
+
+@cli.command(name='reboot')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--confirm', is_flag=True, help='Confirm reboot without prompting')
+@click.pass_context
+def reboot(ctx, host, port, confirm):
+    """Reboot the telescope (requires confirmation)."""
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    if not confirm:
+        click.echo("⚠️  This will reboot the telescope!")
+        if not click.confirm("Are you sure you want to continue?"):
+            click.echo("Reboot cancelled")
+            return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.simple import PiReboot
+    
+    async def reboot_telescope():
+        client = SeestarClient(host=host, port=port)
+        try:
+            await client.connect()
+            click.echo(f"🔄 Rebooting telescope at {host}:{port}...")
+            response = await client.send_and_recv(PiReboot())
+            if response:
+                click.echo("✅ Reboot command sent successfully")
+                click.echo("   The telescope will restart. Wait a few minutes before reconnecting.")
+            else:
+                click.echo("⚠️ Reboot command sent but no confirmation received")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"❌ Error sending reboot command: {e}")
+    
+    asyncio.run(reboot_telescope())
 
 
 if __name__ == '__main__':

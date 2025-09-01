@@ -353,7 +353,7 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                                 width=1080, height=1920, image=rtsp_client.read()
                             )
 
-                            if image is not None:
+                            if image is not None and image.image is not None:
                                 changed = not np.array_equal(
                                     self.image.image, last_image.image
                                 )
