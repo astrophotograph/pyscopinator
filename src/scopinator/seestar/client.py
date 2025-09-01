@@ -802,13 +802,19 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
 
     # Helper methods
     async def goto(
-            self, target_name: str, in_ra: float, in_dec: float, lp_filter: bool = False
+            self,
+            target_name: str,
+            in_ra: float,
+            in_dec: float,
+            *,
+            mode: str = "star",
+            lp_filter: bool = False,
     ):
         """Generalized goto."""
         return await self.send_and_recv(
             IscopeStartView(
                 params=IscopeStartViewParams(
-                    mode="star",
+                    mode=mode,
                     target_ra_dec=(in_ra, in_dec),
                     target_name=target_name,
                     lp_filter=lp_filter,
