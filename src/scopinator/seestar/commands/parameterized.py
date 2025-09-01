@@ -26,10 +26,13 @@ class IscopeStartStack(BaseCommand):
     params: StartStackParams | None = None
 
 
+ScopeViewMode = Literal["scenery", "solar_sys", "star"]
+
+
 class IscopeStartViewParams(BaseModel):
     """Parameters for the IscopeStartView command."""
 
-    mode: Literal["scenery", "solar_sys", "star"] | None = None
+    mode: ScopeViewMode | None = None
     target_name: str | None = None
     target_ra_dec: tuple[float, float] | None = None
     lp_filter: bool | None = None

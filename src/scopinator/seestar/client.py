@@ -19,7 +19,7 @@ from scopinator.seestar.commands.common import CommandResponse
 from scopinator.seestar.commands.parameterized import (
     IscopeStopView,
     IscopeStartView,
-    IscopeStartViewParams,
+    IscopeStartViewParams, ScopeViewMode,
 )
 from scopinator.seestar.commands.responses import (
     TelescopeMessageParser,
@@ -807,7 +807,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
             in_ra: float,
             in_dec: float,
             *,
-            mode: str = "star",
+            mode: ScopeViewMode = "star",
             lp_filter: bool = False,
     ):
         """Generalized goto."""
