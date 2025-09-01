@@ -362,6 +362,8 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                                 if changed:
                                     yield image
                             await asyncio.sleep(0)
+
+                    await asyncio.sleep(0.5)
                     continue
 
                 if self.image is not None:
