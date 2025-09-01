@@ -24,7 +24,7 @@ dependencies = [
     "numpy>=2.3.2",
     "numpy-typing>=1.1.1",
     "opencv-python>=4.11.0.86",
-    "psutil>=7.0.0",
+    "psutil>=5.9.8",
     "pillow>=11.3.0",
 ]
 
