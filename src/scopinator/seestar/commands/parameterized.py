@@ -27,7 +27,7 @@ class IscopeStartStack(BaseCommand):
 
 
 ScopeViewMode = Literal["scenery", "solar_sys", "star"]
-
+ScopeTargetType = Literal["sun", "moon", "planet"]
 
 class IscopeStartViewParams(BaseModel):
     """Parameters for the IscopeStartView command."""
@@ -35,6 +35,7 @@ class IscopeStartViewParams(BaseModel):
     mode: ScopeViewMode | None = None
     target_name: str | None = None
     target_ra_dec: tuple[float, float] | None = None
+    target_type: ScopeTargetType | None = None
     lp_filter: bool | None = None
 
 

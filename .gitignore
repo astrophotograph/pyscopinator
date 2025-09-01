@@ -209,5 +209,6 @@ __marimo__/
 /data
 
 /logs
-*.~1~
+*~
+*.rej
 *.patch
