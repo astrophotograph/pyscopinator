@@ -1580,6 +1580,266 @@ def wheel_setting(ctx, host, port, as_json):
     asyncio.run(get_wheel_setting())
 
 
+@cli.command(name='capture-video')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--duration', '-d', type=float, help='Duration in seconds to capture')
+@click.option('--frames', '-f', type=int, help='Number of frames to capture')
+@click.option('--output', '-o', help='Output file path (MP4 format). If not specified, uses temp file')
+@click.option('--fps', type=int, default=30, help='Frames per second for output video (default: 30)')
+@click.option('--rtsp-port', type=int, default=4554, help='RTSP port (default: 4554)')
+@click.option('--force-rtsp', is_flag=True, help='Force use of RTSP even if in Stack/ContinuousExposure mode')
+@click.pass_context
+def capture_video(ctx, host, port, duration, frames, output, fps, rtsp_port, force_rtsp):
+    """Capture video stream from the telescope.
+    
+    Specify either --duration OR --frames, not both.
+    If no output file is specified, a temporary file will be created.
+    
+    The command automatically detects the imaging mode:
+    - In Stack/ContinuousExposure mode: captures frames from the imaging system
+    - In other modes or with --force-rtsp: captures directly from RTSP stream
+    """
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    if duration and frames:
+        click.echo("❌ Please specify either --duration or --frames, not both")
+        return
+    
+    if not duration and not frames:
+        click.echo("❌ Please specify either --duration or --frames")
+        return
+    
+    import tempfile
+    import os
+    from pathlib import Path
+    import cv2
+    from datetime import datetime
+    import numpy as np
+    
+    from scopinator.seestar.rtspclient import RtspClient
+    from scopinator.seestar.imaging_client import SeestarImagingClient
+    
+    # Generate output filename if not provided
+    if not output:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output = f"scopinator_capture_{timestamp}.mp4"
+        click.echo(f"📹 Using output file: {output}")
+    
+    output_path = Path(output)
+    
+    async def capture_from_imaging_client():
+        """Capture frames from the imaging client when in Stack/ContinuousExposure mode."""
+        client = SeestarImagingClient(host=host, port=port)
+        writer = None
+        frames_written = 0
+        
+        try:
+            await client.connect()
+            click.echo(f"✅ Connected to imaging client at {host}:{port}")
+            click.echo(f"📷 Client mode: {client.client_mode}")
+            
+            # Initialize video writer
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            
+            # Start capture
+            if duration:
+                click.echo(f"🎬 Recording for {duration} seconds at {fps} fps...")
+                target_frames = int(duration * fps)
+            else:
+                click.echo(f"🎬 Recording {frames} frames at {fps} fps...")
+                target_frames = frames
+            
+            start_time = asyncio.get_event_loop().time()
+            last_progress = 0
+            last_frame_time = start_time
+            frame_interval = 1.0 / fps
+            
+            # Start fetching images
+            async for image in client.get_next_image(camera_id=0):
+                if image and image.image is not None:
+                    # Initialize writer with first frame dimensions
+                    if writer is None:
+                        height, width = image.image.shape[:2]
+                        writer = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
+                        if not writer.isOpened():
+                            click.echo("❌ Failed to open video writer")
+                            return
+                    
+                    # Convert RGB to BGR for OpenCV (image is already in RGB from imaging client)
+                    if len(image.image.shape) == 3:
+                        bgr_frame = cv2.cvtColor(image.image, cv2.COLOR_RGB2BGR)
+                    else:
+                        # Grayscale image
+                        bgr_frame = cv2.cvtColor(image.image, cv2.COLOR_GRAY2BGR)
+                    
+                    writer.write(bgr_frame)
+                    frames_written += 1
+                    
+                    # Show progress every 10%
+                    progress = int((frames_written / target_frames) * 10) * 10
+                    if progress > last_progress:
+                        click.echo(f"   Progress: {progress}% ({frames_written}/{target_frames} frames)")
+                        click.echo(f"   Stacked: {client.status.stacked_frame}, Dropped: {client.status.dropped_frame}")
+                        last_progress = progress
+                    
+                    # Check if we've captured enough frames
+                    if frames_written >= target_frames:
+                        break
+                    
+                    # Control frame rate
+                    current_time = asyncio.get_event_loop().time()
+                    time_to_wait = frame_interval - (current_time - last_frame_time)
+                    if time_to_wait > 0:
+                        await asyncio.sleep(time_to_wait)
+                    last_frame_time = current_time
+            
+            elapsed = asyncio.get_event_loop().time() - start_time
+            
+            click.echo(f"✅ Recording complete!")
+            click.echo(f"   Duration: {elapsed:.1f} seconds")
+            click.echo(f"   Frames captured: {frames_written}")
+            click.echo(f"   Output file: {output_path.absolute()}")
+            if output_path.exists():
+                click.echo(f"   File size: {output_path.stat().st_size / 1024 / 1024:.1f} MB")
+            
+            await client.disconnect()
+            
+        except Exception as e:
+            click.echo(f"❌ Error capturing from imaging client: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            if writer is not None:
+                writer.release()
+    
+    async def capture_from_rtsp():
+        """Capture directly from RTSP stream."""
+        try:
+            # Setup RTSP client
+            rtsp_url = f"rtsp://{host}:{rtsp_port}/stream"
+            click.echo(f"📡 Connecting to RTSP stream at {rtsp_url}...")
+            
+            # Initialize video writer
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            writer = None
+            frames_written = 0
+            
+            with RtspClient(rtsp_url) as rtsp_client:
+                # Wait for stream to open
+                await rtsp_client.finish_opening()
+                
+                if not rtsp_client.is_opened():
+                    click.echo("❌ Failed to open RTSP stream")
+                    return
+                
+                click.echo("✅ Connected to RTSP stream")
+                
+                # Get first frame to determine dimensions
+                first_frame = None
+                while first_frame is None and rtsp_client.is_opened():
+                    first_frame = rtsp_client.read()
+                    if first_frame is None:
+                        await asyncio.sleep(0.1)
+                
+                if first_frame is None:
+                    click.echo("❌ Could not read frame from stream")
+                    return
+                
+                height, width = first_frame.shape[:2]
+                writer = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
+                
+                if not writer.isOpened():
+                    click.echo("❌ Failed to open video writer")
+                    return
+                
+                # Write first frame
+                # Convert RGB back to BGR for OpenCV
+                bgr_frame = cv2.cvtColor(first_frame, cv2.COLOR_RGB2BGR)
+                writer.write(bgr_frame)
+                frames_written += 1
+                
+                # Start capture
+                if duration:
+                    click.echo(f"🎬 Recording for {duration} seconds at {fps} fps...")
+                    target_frames = int(duration * fps)
+                else:
+                    click.echo(f"🎬 Recording {frames} frames at {fps} fps...")
+                    target_frames = frames
+                
+                start_time = asyncio.get_event_loop().time()
+                last_progress = 0
+                
+                while rtsp_client.is_opened() and frames_written < target_frames:
+                    frame = rtsp_client.read()
+                    if frame is not None:
+                        # Convert RGB to BGR for OpenCV
+                        bgr_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                        writer.write(bgr_frame)
+                        frames_written += 1
+                        
+                        # Show progress every 10%
+                        progress = int((frames_written / target_frames) * 10) * 10
+                        if progress > last_progress:
+                            click.echo(f"   Progress: {progress}% ({frames_written}/{target_frames} frames)")
+                            last_progress = progress
+                    
+                    # Control frame rate
+                    await asyncio.sleep(1.0 / fps)
+                
+                elapsed = asyncio.get_event_loop().time() - start_time
+                
+                click.echo(f"✅ Recording complete!")
+                click.echo(f"   Duration: {elapsed:.1f} seconds")
+                click.echo(f"   Frames captured: {frames_written}")
+                click.echo(f"   Output file: {output_path.absolute()}")
+                if output_path.exists():
+                    click.echo(f"   File size: {output_path.stat().st_size / 1024 / 1024:.1f} MB")
+                
+        except Exception as e:
+            click.echo(f"❌ Error capturing from RTSP: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            if writer is not None:
+                writer.release()
+    
+    async def capture_video_stream():
+        """Main capture function that determines which method to use."""
+        if not force_rtsp:
+            # Try to connect with imaging client first to check mode
+            client = SeestarImagingClient(host=host, port=port)
+            try:
+                await client.connect()
+                mode = client.client_mode
+                await client.disconnect()
+                
+                if mode in ["Stack", "ContinuousExposure"]:
+                    click.echo(f"🔍 Detected {mode} mode - using imaging client for capture")
+                    await capture_from_imaging_client()
+                else:
+                    click.echo(f"🔍 Detected {mode or 'Idle'} mode - using RTSP stream for capture")
+                    await capture_from_rtsp()
+            except Exception as e:
+                click.echo(f"⚠️ Could not detect imaging mode: {e}")
+                click.echo("📡 Falling back to RTSP stream")
+                await capture_from_rtsp()
+        else:
+            click.echo("📡 Using RTSP stream (forced)")
+            await capture_from_rtsp()
+    
+    asyncio.run(capture_video_stream())
+
+
 @cli.command(name='reboot')
 @click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
 @click.option('--port', '-p', type=int, help='Port number')

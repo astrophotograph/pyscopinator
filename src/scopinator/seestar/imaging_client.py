@@ -43,6 +43,7 @@ class SeestarImagingStatus(BaseModel):
     is_streaming: bool = False
     is_fetching_images: bool = False
     is_receiving_image: bool = False  # True while receiving image data
+    is_sending_image: bool = False
     
     # Image retrieval timing
     last_image_start_time: float | None = None  # Timestamp when image started being received (milliseconds)
@@ -64,6 +65,7 @@ class SeestarImagingStatus(BaseModel):
         self.is_streaming = False
         self.is_fetching_images = False
         self.is_receiving_image = False
+        self.is_sending_image = False
         # Reset timing fields
         self.last_image_start_time = None
         self.last_image_end_time = None
@@ -95,10 +97,6 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
     image: ScopeImage | None = None
     client_mode: Literal["ContinuousExposure", "Stack", "Streaming"] | None = None
     
-    # Raw image caching for instant processing
-    cached_raw_image: Optional[ScopeImage] = None
-    cached_raw_image_lock: threading.Lock = threading.Lock()
-    cached_raw_image_timestamp: float = 0.0
     enhancement_settings_changed_event: Optional[asyncio.Event] = None
 
     # Timeout configuration
@@ -224,14 +222,6 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                             self.status.avg_image_elapsed_ms = sum(self._image_timing_history) / len(self._image_timing_history)
                         
                         logging.debug(f"Image received in {elapsed_ms:.1f}ms (avg: {self.status.avg_image_elapsed_ms:.1f}ms, size: {size} bytes)")
-                    
-                    # Cache the raw image for instant processing
-                    # Only cache if we have valid image data (both the ScopeImage and its image field)
-                    # print(f"Image {self.image is not None} image image: {self.image.image is not None if self.image is not None else None}")
-                    if self.image is not None and self.image.image is not None:
-                        with self.cached_raw_image_lock:
-                            self.cached_raw_image = self.image.copy() if hasattr(self.image, 'copy') else self.image
-                            self.cached_raw_image_timestamp = time.time()
 
             except Exception as e:
                 logging.error(
@@ -332,14 +322,6 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
         self.status.is_fetching_images = True
         try:
             while self.is_connected:
-                # Check if enhancement settings changed and we have a cached image
-                # if self.enhancement_settings_changed_event.is_set():
-                #     self.enhancement_settings_changed_event.clear()
-                #     with self.cached_raw_image_lock:
-                #         if self.cached_raw_image is not None:
-                #             logging.info("Enhancement settings changed, yielding cached image for instant processing")
-                #             yield self.cached_raw_image
-                #             continue
                 if self.client_mode == "Streaming":
                     # If we're streaming, just run RTSP client, which runs as a background thread...
                     rtsp_port = 4554 + camera_id
@@ -360,7 +342,9 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                                 last_image = image
 
                                 if changed:
+                                    self.status.is_sending_image = True
                                     yield image
+                                    self.status.is_sending_image = False
                             await asyncio.sleep(0)
 
                     await asyncio.sleep(0.5)
@@ -370,7 +354,9 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                     last_image = self.image
 
                     logging.trace(f"Image changed, yielding image for {self}")
+                    self.status.is_sending_image = True
                     yield self.image
+                    self.status.is_sending_image = False
                 await asyncio.sleep(0.1)
         except Exception as e:
             logging.error(f"Unexpected error in imaging reader task for {self}: {e}")
@@ -378,6 +364,7 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
 
             traceback.print_exc()
 
+        self.status.is_sending_image = False
         self.status.is_fetching_images = False
 
     async def _handle_stack_event(self, event: BaseEvent):
@@ -489,10 +476,10 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
             self.enhancement_settings_changed_event.set()
             logging.info("Enhancement settings changed event triggered")
     
-    def get_cached_raw_image(self) -> Optional[ScopeImage]:
-        """Get the cached raw image."""
-        with self.cached_raw_image_lock:
-            return self.cached_raw_image.copy() if self.cached_raw_image and hasattr(self.cached_raw_image, 'copy') else self.cached_raw_image
+    # def get_cached_raw_image(self) -> Optional[ScopeImage]:
+    #     """Get the cached raw image."""
+    #     with self.cached_raw_image_lock:
+    #         return self.cached_raw_image.copy() if self.cached_raw_image and hasattr(self.cached_raw_image, 'copy') else self.cached_raw_image
 
     async def _connection_monitor(self):
         """Background task that monitors connection health and manages reconnection."""

@@ -189,6 +189,7 @@ async def discover_on_interface(
                 logging.trace(f"Received response from {addr}: {data.decode('utf-8')}")
                 try:
                     response = json.loads(data.decode("utf-8"))
+                    # note: response['result']['tcp_client_num'] has number of already connected clients
                     # Only add if we haven't seen this device in this discovery session
                     if device_ip not in discovered_ips:
                         discovered_ips.add(device_ip)
@@ -199,7 +200,7 @@ async def discover_on_interface(
                                 "discovered_via": local_ip,
                             }
                         )
-                        
+
                         # Only log if this is a truly new device (not seen in any previous discovery)
                         if device_ip not in _known_telescopes:
                             _known_telescopes.add(device_ip)
