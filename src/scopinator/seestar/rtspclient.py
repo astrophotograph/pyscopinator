@@ -1,6 +1,7 @@
 """OpenCV Backend RTSP Client"""
 
 import asyncio
+import os
 from threading import Thread, RLock
 from typing import Any, Optional
 
@@ -8,6 +9,11 @@ import cv2
 import numpy.typing as npt
 from PIL import Image
 from loguru import logger as logging
+
+# Suppress FFmpeg/H.264 decoder warnings
+# These are common with RTSP streams and usually harmless
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "loglevel;quiet"
+os.environ["OPENCV_LOG_LEVEL"] = "ERROR"  # Only show errors, not warnings
 
 
 # Adapted from https://github.com/dactylroot/rtsp/tree/master

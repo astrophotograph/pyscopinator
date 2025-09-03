@@ -396,7 +396,7 @@ def goto(ctx, ra, dec, host, port, name):
 
 @cli.command()
 @click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
-@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--port', '-p', type=int, help='Port number (default: 4800 for imaging)')
 @click.option('--duration', '-d', default=10, type=int, help='Stream duration in seconds')
 @click.pass_context
 def stream(ctx, host, port, duration):
@@ -406,7 +406,7 @@ def stream(ctx, host, port, duration):
         ctx.obj = {}
     
     host = host or ctx.obj.get('host')
-    port = port or ctx.obj.get('port', 4700)
+    port = port or 4800  # Imaging client uses port 4800
     
     if not host:
         click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
@@ -1636,13 +1636,13 @@ def capture_video(ctx, host, port, duration, frames, output, fps, rtsp_port, for
     
     async def capture_from_imaging_client():
         """Capture frames from the imaging client when in Stack/ContinuousExposure mode."""
-        client = SeestarImagingClient(host=host, port=port)
+        client = SeestarImagingClient(host=host, port=4800)  # Imaging client uses port 4800
         writer = None
         frames_written = 0
         
         try:
             await client.connect()
-            click.echo(f"✅ Connected to imaging client at {host}:{port}")
+            click.echo(f"✅ Connected to imaging client at {host}:4800")
             click.echo(f"📷 Client mode: {client.client_mode}")
             
             # Initialize video writer
@@ -1814,7 +1814,7 @@ def capture_video(ctx, host, port, duration, frames, output, fps, rtsp_port, for
         """Main capture function that determines which method to use."""
         if not force_rtsp:
             # Try to connect with imaging client first to check mode
-            client = SeestarImagingClient(host=host, port=port)
+            client = SeestarImagingClient(host=host, port=4800)  # Imaging client uses port 4800
             try:
                 await client.connect()
                 mode = client.client_mode
@@ -1945,8 +1945,9 @@ def monitor(ctx, host, port, timeout, count, as_json, pretty, include, exclude, 
     
     async def monitor_messages():
         client = SeestarClient(host=host, port=port)
-        messages_received = 0
-        filtered_count = 0
+        last_processed_index = 0  # Track the last processed message index
+        messages_displayed = 0    # Count of messages actually displayed
+        messages_filtered = 0     # Count of filtered messages
         start_time = time.time()
         end_time = start_time + timeout if timeout else None
         
@@ -1989,21 +1990,19 @@ def monitor(ctx, host, port, timeout, count, as_json, pretty, include, exclude, 
                     click.echo(f"\n⏱️ Timeout reached ({timeout} seconds)")
                     break
                     
-                if count and messages_received >= count:
+                if count and messages_displayed >= count:
                     click.echo(f"\n✅ Captured {count} messages")
                     break
                 
                 # Check for new messages  
                 current_history_size = len(client.message_history)
-                if current_history_size > messages_received:
+                if current_history_size > last_processed_index:
                     # Process new messages
-                    for i in range(messages_received, current_history_size):
+                    for i in range(last_processed_index, current_history_size):
                         msg = client.message_history[i]
                         
                         # Only show received messages (not sent)
                         if msg.direction == "received":
-                            messages_received += 1
-                            
                             # Determine if we should show this message based on filters
                             should_show = True
                             event_type = None
@@ -2037,16 +2036,17 @@ def monitor(ctx, host, port, timeout, count, as_json, pretty, include, exclude, 
                                     should_show = event_type not in exclude_set
                             
                             if not should_show:
-                                filtered_count += 1
+                                messages_filtered += 1
                                 continue  # Skip this message
+                            
+                            messages_displayed += 1
                             
                             if as_json:
                                 # Raw JSON output
                                 click.echo(msg.message)
                             else:
                                 # Pretty print format
-                                display_num = messages_received - filtered_count
-                                click.echo(f"\n[{msg.timestamp}] Message #{display_num}")
+                                click.echo(f"\n[{msg.timestamp}] Message #{messages_displayed}")
                                 if event_type:
                                     click.echo(f"Event Type: {event_type}")
                                 click.echo("-" * 40)
@@ -2095,24 +2095,28 @@ def monitor(ctx, host, port, timeout, count, as_json, pretty, include, exclude, 
                                     click.echo("Type: UNPARSED")
                                     click.echo(f"Raw: {msg.message}")
                             
-                            # Check if we should stop after this message (count displayed, not total)
-                            if count and (messages_received - filtered_count) >= count:
+                            # Check if we should stop after this message
+                            if count and messages_displayed >= count:
                                 break
+                    
+                    # Update the last processed index
+                    last_processed_index = current_history_size
                 
                 # Small delay to avoid busy waiting
                 await asyncio.sleep(0.1)
             
             # Summary
             elapsed = time.time() - start_time
+            total_messages = messages_displayed + messages_filtered
             click.echo("\n" + "=" * 60)
             click.echo("📊 Monitoring Summary:")
             click.echo(f"   Duration: {elapsed:.1f} seconds")
-            click.echo(f"   Messages received: {messages_received}")
-            click.echo(f"   Messages displayed: {messages_received - filtered_count}")
-            if filtered_count > 0:
-                click.echo(f"   Messages filtered: {filtered_count}")
-            if messages_received > 0:
-                rate = messages_received / elapsed
+            click.echo(f"   Messages received: {total_messages}")
+            click.echo(f"   Messages displayed: {messages_displayed}")
+            if messages_filtered > 0:
+                click.echo(f"   Messages filtered: {messages_filtered}")
+            if total_messages > 0:
+                rate = total_messages / elapsed
                 click.echo(f"   Message rate: {rate:.2f} messages/second")
             
             await client.disconnect()
@@ -2126,6 +2130,497 @@ def monitor(ctx, host, port, timeout, count, as_json, pretty, include, exclude, 
                 await client.disconnect()
     
     asyncio.run(monitor_messages())
+
+
+@cli.command(name='stream-images')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--duration', '-d', type=float, help='Duration in seconds (default: continuous)')
+@click.option('--count', '-c', type=int, help='Number of images to capture before stopping')
+@click.option('--json', 'as_json', is_flag=True, help='Output statistics as JSON')
+@click.option('--save', '-s', help='Directory to save images or video file path (e.g., /tmp/images or /tmp/output.mp4)')
+@click.option('--save-video', is_flag=True, help='Save as video file (MP4) instead of individual images')
+@click.option('--fps', type=float, default=10.0, help='Video frame rate when saving as video (default: 10 fps)')
+@click.option('--camera-id', type=int, default=0, help='Camera ID (default: 0)')
+@click.option('--show-events', is_flag=True, help='Display other telescope events and messages')
+@click.option('--event-filter', multiple=True, help='Filter events to show (can be used multiple times)')
+@click.option('--compact', is_flag=True, help='Use compact one-line display format')
+@click.option('--scenery', is_flag=True, help='Use scenery mode (IscopeStartView) instead of BeginStreaming')
+@click.option('--verbose-rtsp', is_flag=True, help='Show RTSP/H.264 decoder warnings (normally suppressed)')
+@click.pass_context
+def stream_images(ctx, host, port, duration, count, as_json, save, save_video, fps, camera_id, show_events, event_filter, compact, scenery, verbose_rtsp):
+    """Stream images from the telescope and display statistics.
+    
+    Starts both a regular client and imaging client, begins streaming,
+    and continuously fetches images while displaying statistics about each frame.
+    
+    Statistics include:
+    - Image dimensions (width x height)
+    - Image size in bytes
+    - Time since last image
+    - Frame rate
+    - Stack/drop counts
+    
+    With --show-events, also displays telescope events like:
+    - PiStatus updates (temperature, battery)
+    - Stack events
+    - Focus changes
+    - Mode changes
+    
+    Examples:
+        scopinator stream-images --host 192.168.1.100    # Stream continuously
+        scopinator stream-images --duration 30           # Stream for 30 seconds
+        scopinator stream-images --count 10              # Capture 10 images
+        scopinator stream-images --json                  # Output stats as JSON
+        scopinator stream-images --save /tmp/images      # Save images to directory
+        scopinator stream-images --save /tmp/output.mp4 --save-video  # Save as video
+        scopinator stream-images --show-events           # Show all events
+        scopinator stream-images --show-events --event-filter Stack  # Show only Stack events
+        scopinator stream-images --compact               # Compact one-line display
+        scopinator stream-images --scenery               # Use scenery mode instead of BeginStreaming
+    """
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.imaging_client import SeestarImagingClient
+    from scopinator.util.eventbus import EventBus
+    from pathlib import Path
+    from datetime import datetime
+    import time
+    import numpy as np
+    import os
+    
+    # Enable verbose RTSP mode if requested
+    if verbose_rtsp:
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "loglevel;warning"
+        os.environ["OPENCV_LOG_LEVEL"] = "WARNING"
+        if not as_json:
+            click.echo("🔊 RTSP verbose mode enabled (H.264 warnings will be shown)")
+    
+    async def stream_images_task():
+        # Create a shared event bus for both clients
+        event_bus = EventBus()
+        
+        # Create both clients with correct ports
+        # Regular client uses port 4700, imaging client uses port 4800
+        client = SeestarClient(host=host, port=port, event_bus=event_bus)
+        imaging_client = SeestarImagingClient(host=host, port=4800, event_bus=event_bus)
+        
+        images_received = 0
+        last_image_time = None
+        last_message_check = 0
+        start_time = time.time()
+        end_time = start_time + duration if duration else None
+        save_path = None
+        video_writer = None
+        event_filter_set = set(event_filter) if event_filter else None
+        
+        # Setup save path (directory for images or file for video)
+        if save:
+            save_path = Path(save)
+            if save_video:
+                # Video file - ensure parent directory exists
+                save_path.parent.mkdir(parents=True, exist_ok=True)
+                if not save_path.suffix:
+                    save_path = save_path.with_suffix('.mp4')
+                click.echo(f"💾 Will save video to: {save_path}")
+            else:
+                # Directory for images
+                save_path.mkdir(parents=True, exist_ok=True)
+                click.echo(f"💾 Saving images to: {save_path}")
+        
+        try:
+            # Connect both clients
+            click.echo(f"🔭 Connecting to telescope...")
+            click.echo(f"   Regular client: {host}:{port}")
+            click.echo(f"   Imaging client: {host}:4800")
+            await client.connect()
+            await imaging_client.connect()
+            click.echo("✅ Connected both clients")
+            
+            # Check current mode
+            click.echo(f"📷 Current mode: {imaging_client.client_mode or 'Unknown'}")
+            
+            # Start streaming based on mode
+            if scenery:
+                click.echo("🎬 Starting scenery view (IscopeStartView)...")
+                from scopinator.seestar.commands.parameterized import IscopeStartView, IscopeStartViewParams, IscopeStopView
+                
+                # Send IscopeStartView command with scenery mode
+                start_view_cmd = IscopeStartView(
+                    params=IscopeStartViewParams(
+                        mode="scenery",
+                        target_name="Scenery Stream"
+                    )
+                )
+                response = await client.send_and_recv(start_view_cmd)
+                if response and response.result:
+                    click.echo("✅ Scenery view started")
+                else:
+                    click.echo("⚠️ Scenery view command sent but no confirmation")
+            else:
+                click.echo("🎬 Starting image stream (BeginStreaming)...")
+                await imaging_client.start_streaming()
+            
+            await asyncio.sleep(1)  # Give it a moment to start
+            
+            if not as_json:
+                mode_str = "compact mode" if compact else "verbose mode"
+                click.echo(f"📊 Streaming images ({mode_str})...")
+                if show_events:
+                    click.echo("📡 Showing events" + (f" (filtered: {', '.join(event_filter)})" if event_filter_set else ""))
+                if compact:
+                    click.echo("Format: [Time] #Num | WxHxC | Size | Δt | FPS | S:stacked D:dropped [pixel info]")
+                click.echo("-" * 60)
+            
+            # Helper function to display events
+            def display_event(msg, msg_type="EVENT"):
+                """Display an event message if show_events is enabled."""
+                if not show_events or as_json:
+                    return
+                    
+                try:
+                    import json as json_lib
+                    msg_obj = json_lib.loads(msg.message) if hasattr(msg, 'message') else msg
+                    
+                    # Extract event type
+                    event_type = None
+                    if isinstance(msg_obj, dict):
+                        if "Event" in msg_obj:
+                            event_type = msg_obj.get("Event")
+                        elif "method" in msg_obj:
+                            event_type = msg_obj.get("method", "").split(".")[-1]
+                    
+                    # Apply filter
+                    if event_filter_set and event_type and event_type not in event_filter_set:
+                        return
+                    
+                    timestamp = datetime.now().strftime('%H:%M:%S')
+                    
+                    if compact:
+                        # Compact one-line event display
+                        event_data = ""
+                        if event_type == "PiStatus":
+                            battery = msg_obj.get("battery_capacity", "?")
+                            temp = msg_obj.get("temp", "?")
+                            event_data = f" 🔋{battery}% 🌡️{temp}°C"
+                        elif event_type == "Stack":
+                            stacked = msg_obj.get("stacked_frame", "?")
+                            state = msg_obj.get("state", "?")
+                            event_data = f" stack:{stacked} state:{state}"
+                        elif event_type == "FocuserMove":
+                            pos = msg_obj.get("position", "?")
+                            event_data = f" pos:{pos}"
+                        click.echo(f"[{timestamp}] EVENT: {event_type or 'Unknown'}{event_data}")
+                    else:
+                        # Verbose event display
+                        click.echo(f"\n💫 [{timestamp}.{datetime.now().strftime('%f')[:3]}] {msg_type}: {event_type or 'Unknown'}")
+                        
+                        # Show key details based on event type
+                        if event_type == "PiStatus" and "Timestamp" in msg_obj:
+                            if "battery_capacity" in msg_obj:
+                                click.echo(f"   🔋 Battery: {msg_obj['battery_capacity']}%")
+                            if "temp" in msg_obj:
+                                click.echo(f"   🌡️ Temp: {msg_obj['temp']}°C")
+                        elif event_type == "Stack":
+                            if "stacked_frame" in msg_obj:
+                                click.echo(f"   📚 Stacked: {msg_obj['stacked_frame']}")
+                            if "state" in msg_obj:
+                                click.echo(f"   State: {msg_obj['state']}")
+                        elif event_type == "FocuserMove":
+                            if "position" in msg_obj:
+                                click.echo(f"   🔍 Position: {msg_obj['position']}")
+                        else:
+                            # Show a compact version of the data
+                            if isinstance(msg_obj, dict) and "result" in msg_obj:
+                                result = msg_obj["result"]
+                                if isinstance(result, dict) and len(result) > 0:
+                                    # Show first few key-value pairs
+                                    items = list(result.items())[:3]
+                                    for k, v in items:
+                                        click.echo(f"   {k}: {v}")
+                except Exception:
+                    pass  # Silently ignore parse errors
+            
+            # Start fetching images
+            async for image in imaging_client.get_next_image(camera_id=camera_id):
+                # Check for new events/messages from the regular client
+                if show_events and not as_json:
+                    current_history_size = len(client.message_history)
+                    if current_history_size > last_message_check:
+                        # Process new messages
+                        for i in range(last_message_check, current_history_size):
+                            msg = client.message_history[i]
+                            if msg.direction == "received":
+                                display_event(msg)
+                        last_message_check = current_history_size
+                
+                if image and image.image is not None:
+                    images_received += 1
+                    current_time = time.time()
+                    
+                    # Calculate statistics
+                    height, width = image.image.shape[:2]
+                    channels = image.image.shape[2] if len(image.image.shape) > 2 else 1
+                    bytes_size = image.image.nbytes
+                    
+                    # Time calculations
+                    time_since_last = None
+                    fps = None
+                    if last_image_time:
+                        time_since_last = current_time - last_image_time
+                        fps = 1.0 / time_since_last if time_since_last > 0 else 0
+                    
+                    elapsed = current_time - start_time
+                    avg_fps = images_received / elapsed if elapsed > 0 else 0
+                    
+                    # Get status from imaging client
+                    status = imaging_client.status
+                    
+                    if as_json:
+                        # JSON output
+                        stats = {
+                            "image_number": images_received,
+                            "timestamp": datetime.now().isoformat(),
+                            "dimensions": {"width": width, "height": height, "channels": channels},
+                            "bytes": bytes_size,
+                            "time_since_last": time_since_last,
+                            "fps": fps,
+                            "avg_fps": avg_fps,
+                            "elapsed": elapsed,
+                            "stacked_frames": status.stacked_frame,
+                            "dropped_frames": status.dropped_frame,
+                            "skipped_frames": status.skipped_frame,
+                        }
+                        import json as json_lib
+                        click.echo(json_lib.dumps(stats))
+                    elif compact:
+                        # Compact one-line output
+                        timestamp = datetime.now().strftime('%H:%M:%S')
+                        size_mb = bytes_size/1024/1024
+                        ms_since = f"{time_since_last*1000:.0f}ms" if time_since_last else "----"
+                        fps_str = f"{fps:.1f}" if fps else "----"
+                        pixel_info = ""
+                        if channels == 1:
+                            pixel_info = f" [{np.min(image.image)}-{np.max(image.image)}]"
+                        else:
+                            # Show just the average brightness for RGB
+                            avg_r = np.mean(image.image[:,:,0])
+                            avg_g = np.mean(image.image[:,:,1]) if channels > 1 else 0
+                            avg_b = np.mean(image.image[:,:,2]) if channels > 2 else 0
+                            pixel_info = f" RGB[{avg_r:.0f},{avg_g:.0f},{avg_b:.0f}]"
+                        
+                        click.echo(f"[{timestamp}] #{images_received:04d} | {width}x{height}x{channels} | {size_mb:.1f}MB | Δt:{ms_since:>7s} | FPS:{fps_str:>5s} | S:{status.stacked_frame:3d} D:{status.dropped_frame:2d}{pixel_info}")
+                    else:
+                        # Pretty print output
+                        click.echo(f"\n📸 Image #{images_received}")
+                        click.echo(f"   Timestamp: {datetime.now().strftime('%H:%M:%S.%f')[:-3]}")
+                        click.echo(f"   Dimensions: {width}x{height}x{channels}")
+                        click.echo(f"   Size: {bytes_size:,} bytes ({bytes_size/1024/1024:.2f} MB)")
+                        if time_since_last:
+                            click.echo(f"   Time since last: {time_since_last*1000:.1f} ms")
+                            click.echo(f"   Current FPS: {fps:.2f}")
+                        click.echo(f"   Average FPS: {avg_fps:.2f}")
+                        click.echo(f"   Frames: {status.stacked_frame} stacked, {status.dropped_frame} dropped, {status.skipped_frame} skipped")
+                        
+                        # Show image stats
+                        if channels == 1:
+                            click.echo(f"   Pixel range: [{np.min(image.image)}, {np.max(image.image)}]")
+                        else:
+                            for i, color in enumerate(['R', 'G', 'B'][:channels]):
+                                click.echo(f"   {color} range: [{np.min(image.image[:,:,i])}, {np.max(image.image[:,:,i])}]")
+                    
+                    # Save image if requested
+                    if save_path:
+                        if save_video:
+                            # Save to video file
+                            if video_writer is None:
+                                # Initialize video writer on first frame
+                                import cv2
+                                # Ensure we're using integer dimensions and valid fps
+                                vid_width = int(width)
+                                vid_height = int(height)
+                                vid_fps = float(fps) if fps and fps > 0 else 10.0
+                                
+                                # Choose codec based on file extension
+                                file_ext = save_path.suffix.lower()
+                                if file_ext == '.avi':
+                                    # Use MJPG for AVI files
+                                    fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+                                    codec_name = 'MJPG'
+                                else:
+                                    # Use H.264 for MP4 files (more compatible than mp4v)
+                                    # Try different H.264 codec identifiers
+                                    try:
+                                        fourcc = cv2.VideoWriter_fourcc(*'avc1')  # H.264 codec
+                                        codec_name = 'avc1 (H.264)'
+                                    except:
+                                        fourcc = cv2.VideoWriter_fourcc(*'h264')
+                                        codec_name = 'h264'
+                                
+                                if not as_json:
+                                    click.echo(f"   🎬 Initializing video writer: {vid_width}x{vid_height} @ {vid_fps} fps")
+                                    click.echo(f"      Output: {save_path} (codec: {codec_name})")
+                                
+                                video_writer = cv2.VideoWriter(str(save_path), fourcc, vid_fps, (vid_width, vid_height))
+                                if not video_writer.isOpened():
+                                    # Try fallback codecs
+                                    fallback_codecs = [
+                                        ('mp4v', 'MPEG-4'),
+                                        ('XVID', 'Xvid'),
+                                        ('MJPG', 'Motion JPEG'),
+                                    ]
+                                    
+                                    for codec, name in fallback_codecs:
+                                        if not as_json:
+                                            click.echo(f"   ⚠️ {codec_name} failed, trying {name}...")
+                                        fourcc = cv2.VideoWriter_fourcc(*codec)
+                                        video_writer = cv2.VideoWriter(str(save_path), fourcc, vid_fps, (vid_width, vid_height))
+                                        if video_writer.isOpened():
+                                            if not as_json:
+                                                click.echo(f"   ✅ Video writer opened with {name} codec")
+                                            break
+                                    
+                                    if not video_writer.isOpened():
+                                        click.echo(f"❌ Failed to open video writer for {save_path}")
+                                        click.echo(f"   Dimensions: {vid_width}x{vid_height}, FPS: {vid_fps}")
+                                        video_writer = None
+                                else:
+                                    if not as_json:
+                                        click.echo(f"   ✅ Video writer initialized successfully")
+                            
+                            if video_writer:
+                                # Convert image to BGR for OpenCV (assuming input is RGB)
+                                if len(image.image.shape) == 3:
+                                    bgr_frame = cv2.cvtColor(image.image.astype(np.uint8), cv2.COLOR_RGB2BGR)
+                                else:
+                                    # Grayscale - convert to BGR
+                                    bgr_frame = cv2.cvtColor(image.image.astype(np.uint8), cv2.COLOR_GRAY2BGR)
+                                video_writer.write(bgr_frame)
+                                
+                                if not as_json and images_received % 10 == 0:
+                                    click.echo(f"   💾 Video: {images_received} frames written")
+                        else:
+                            # Save as individual image
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+                            filename = save_path / f"image_{timestamp}.npy"
+                            np.save(filename, image.image)
+                            if not as_json:
+                                click.echo(f"   💾 Saved: {filename.name}")
+                    
+                    last_image_time = current_time
+                    
+                    # Check if we should stop
+                    if end_time and current_time >= end_time:
+                        if not as_json:
+                            click.echo(f"\n⏱️ Duration reached ({duration} seconds)")
+                        break
+                    
+                    if count and images_received >= count:
+                        if not as_json:
+                            click.echo(f"\n✅ Captured {count} images")
+                        break
+                
+                # Small delay to avoid busy loop
+                await asyncio.sleep(0.001)
+            
+            # Stop streaming based on mode
+            if not as_json:
+                click.echo("\n🛑 Stopping stream...")
+            
+            if scenery:
+                # Stop scenery view
+                from scopinator.seestar.commands.parameterized import IscopeStopView, StopStage
+                stop_view_cmd = IscopeStopView(params={"stage": StopStage.STACK})
+                response = await client.send_and_recv(stop_view_cmd)
+                if response:
+                    click.echo("✅ Scenery view stopped") if not as_json else None
+            else:
+                await imaging_client.stop_streaming()
+            
+            # Clean up video writer
+            if video_writer:
+                video_writer.release()
+                if not as_json:
+                    click.echo(f"✅ Video saved: {save_path} ({images_received} frames)")
+            
+            # Summary
+            if not as_json:
+                total_elapsed = time.time() - start_time
+                click.echo("\n" + "=" * 60)
+                click.echo("📊 Streaming Summary:")
+                click.echo(f"   Duration: {total_elapsed:.1f} seconds")
+                click.echo(f"   Images received: {images_received}")
+                if images_received > 0:
+                    avg_fps = images_received / total_elapsed
+                    click.echo(f"   Average FPS: {avg_fps:.2f}")
+                    click.echo(f"   Final frame counts: {imaging_client.status.stacked_frame} stacked, {imaging_client.status.dropped_frame} dropped")
+                if save_path:
+                    if save_video:
+                        click.echo(f"   Video saved to: {save_path}")
+                    else:
+                        click.echo(f"   Images saved to: {save_path}")
+            
+            # Disconnect
+            await imaging_client.disconnect()
+            await client.disconnect()
+            
+        except KeyboardInterrupt:
+            if not as_json:
+                click.echo("\n\n⚠️ Streaming interrupted by user")
+            
+            # Clean up video writer
+            if video_writer:
+                video_writer.release()
+                if not as_json:
+                    click.echo(f"💾 Video saved: {save_path} ({images_received} frames)")
+            
+            try:
+                if scenery:
+                    from scopinator.seestar.commands.parameterized import IscopeStopView, StopStage
+                    stop_view_cmd = IscopeStopView(params={"stage": StopStage.STACK})
+                    await client.send_and_recv(stop_view_cmd)
+                else:
+                    await imaging_client.stop_streaming()
+            except:
+                pass
+            await imaging_client.disconnect()
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"\n❌ Error during streaming: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Clean up video writer
+            if video_writer:
+                video_writer.release()
+                if not as_json:
+                    click.echo(f"💾 Video saved: {save_path} ({images_received} frames)")
+            
+            try:
+                if scenery:
+                    from scopinator.seestar.commands.parameterized import IscopeStopView, StopStage
+                    stop_view_cmd = IscopeStopView(params={"stage": StopStage.STACK})
+                    await client.send_and_recv(stop_view_cmd)
+                else:
+                    await imaging_client.stop_streaming()
+            except:
+                pass
+            if imaging_client.is_connected:
+                await imaging_client.disconnect()
+            if client.is_connected:
+                await client.disconnect()
+    
+    asyncio.run(stream_images_task())
 
 
 @cli.command(name='reboot')

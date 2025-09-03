@@ -120,6 +120,11 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
         read_timeout: float = 30.0,
         write_timeout: float = 10.0,
     ):
+        # Create an EventBus if none provided
+        if event_bus is None:
+            from scopinator.util.eventbus import EventBus
+            event_bus = EventBus()
+            
         super().__init__(
             host=host,
             port=port,
@@ -336,12 +341,18 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                             )
 
                             if image is not None and image.image is not None:
-                                changed = not np.array_equal(
-                                    self.image.image, last_image.image
-                                )
-                                last_image = image
-
+                                # Check if image has changed from the last one we sent
+                                if last_image.image is not None:
+                                    changed = not np.array_equal(
+                                        image.image, last_image.image
+                                    )
+                                else:
+                                    # First image, always consider it as changed
+                                    changed = True
+                                
                                 if changed:
+                                    last_image = image
+                                    self.image = image  # Update current image
                                     self.status.is_sending_image = True
                                     yield image
                                     self.status.is_sending_image = False
@@ -350,13 +361,30 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                     await asyncio.sleep(0.5)
                     continue
 
-                if self.image is not None:
-                    last_image = self.image
+                if self.image is not None and self.image.image is not None:
+                    # Check if image has changed from the last one we sent
+                    if last_image.image is not None:
+                        changed = not np.array_equal(
+                            self.image.image, last_image.image
+                        )
+                    else:
+                        # First image, always consider it as changed
+                        changed = True
 
-                    logging.trace(f"Image changed, yielding image for {self}")
-                    self.status.is_sending_image = True
-                    yield self.image
-                    self.status.is_sending_image = False
+                    if changed:
+                        logging.debug(f"Image changed, yielding image for {self}")
+                        last_image = self.image
+                        # self.image = image  # Update current image
+                        self.status.is_sending_image = True
+                        yield self.image
+                        self.status.is_sending_image = False
+
+                    # last_image = self.image
+
+                    # logging.trace(f"Image changed, yielding image for {self}")
+                    # self.status.is_sending_image = True
+                    # yield self.image
+                    # self.status.is_sending_image = False
                 await asyncio.sleep(0.1)
         except Exception as e:
             logging.error(f"Unexpected error in imaging reader task for {self}: {e}")
