@@ -123,7 +123,7 @@ def connect(ctx, host, port, timeout):
     
     success = asyncio.run(test_connection())
     if success:
-        click.echo(f"\nConnection saved. Use other commands to control the telescope.")
+        click.echo("\nConnection saved. Use other commands to control the telescope.")
 
 
 @cli.command()
@@ -266,7 +266,7 @@ def status(ctx, host, port, detailed):
                 if status.gain is not None:
                     click.echo(f"📊 Gain: {status.gain}")
                 if status.lp_filter:
-                    click.echo(f"🔴 LP Filter: Active")
+                    click.echo("🔴 LP Filter: Active")
                 
                 # Focus
                 if status.focus_position is not None:
@@ -378,7 +378,7 @@ def goto(ctx, ra, dec, host, port, name):
             response = await client.send_command(goto_cmd)
             
             if response:
-                click.echo(f"✅ Slewing to target initiated")
+                click.echo("✅ Slewing to target initiated")
                 
                 # Wait a moment and check position from status
                 await asyncio.sleep(2)
@@ -463,14 +463,14 @@ def version(ctx):
         if '.' in v:
             parts = v.split('.')
             if len(parts) >= 2 and parts[0].isdigit() and int(parts[0]) >= 2024:
-                click.echo(f"  Format: CalVer (YYYY.MM.PATCH)")
+                click.echo("  Format: CalVer (YYYY.MM.PATCH)")
                 click.echo(f"  Year: {parts[0]}, Month: {parts[1]}, Patch: {parts[2] if len(parts) > 2 else '0'}")
     except:
         # Fallback to package version if metadata not available
         try:
             from scopinator import __version__
             click.echo(f"Scopinator version: {__version__}")
-            click.echo(f"  Format: CalVer (YYYY.MM.PATCH)")
+            click.echo("  Format: CalVer (YYYY.MM.PATCH)")
         except:
             click.echo("Scopinator version: development")
 
@@ -1302,7 +1302,7 @@ def view_state(ctx, host, port, as_json):
                         # Show RTSP info if present
                         if 'RTSP' in view:
                             rtsp = view['RTSP']
-                            click.echo(f"\nRTSP Stream:")
+                            click.echo("\nRTSP Stream:")
                             if 'state' in rtsp:
                                 click.echo(f"  State: {rtsp['state']}")
                             if 'port' in rtsp:
@@ -1619,12 +1619,9 @@ def capture_video(ctx, host, port, duration, frames, output, fps, rtsp_port, for
         click.echo("❌ Please specify either --duration or --frames")
         return
     
-    import tempfile
-    import os
     from pathlib import Path
     import cv2
     from datetime import datetime
-    import numpy as np
     
     from scopinator.seestar.rtspclient import RtspClient
     from scopinator.seestar.imaging_client import SeestarImagingClient
@@ -1705,7 +1702,7 @@ def capture_video(ctx, host, port, duration, frames, output, fps, rtsp_port, for
             
             elapsed = asyncio.get_event_loop().time() - start_time
             
-            click.echo(f"✅ Recording complete!")
+            click.echo("✅ Recording complete!")
             click.echo(f"   Duration: {elapsed:.1f} seconds")
             click.echo(f"   Frames captured: {frames_written}")
             click.echo(f"   Output file: {output_path.absolute()}")
@@ -1798,7 +1795,7 @@ def capture_video(ctx, host, port, duration, frames, output, fps, rtsp_port, for
                 
                 elapsed = asyncio.get_event_loop().time() - start_time
                 
-                click.echo(f"✅ Recording complete!")
+                click.echo("✅ Recording complete!")
                 click.echo(f"   Duration: {elapsed:.1f} seconds")
                 click.echo(f"   Frames captured: {frames_written}")
                 click.echo(f"   Output file: {output_path.absolute()}")
@@ -1838,6 +1835,297 @@ def capture_video(ctx, host, port, duration, frames, output, fps, rtsp_port, for
             await capture_from_rtsp()
     
     asyncio.run(capture_video_stream())
+
+
+@cli.command(name='monitor')
+@click.option('--host', '-h', help='Telescope IP (uses saved connection if not provided)')
+@click.option('--port', '-p', type=int, help='Port number')
+@click.option('--timeout', '-t', type=float, help='Timeout in seconds (default: continuous monitoring)')
+@click.option('--count', '-c', type=int, help='Number of messages to capture before stopping')
+@click.option('--json', 'as_json', is_flag=True, help='Output raw JSON messages')
+@click.option('--pretty', is_flag=True, help='Pretty print JSON messages (default when not using --json)')
+@click.option('--include', '-i', multiple=True, help='Include only these event types (can be used multiple times)')
+@click.option('--exclude', '-e', multiple=True, help='Exclude these event types (can be used multiple times)')
+@click.option('--exec', 'exec_commands', multiple=True, help='Execute command after connecting (can be used multiple times)')
+@click.option('--exec-delay', type=float, default=1.0, help='Delay in seconds before executing commands (default: 1.0)')
+@click.pass_context
+def monitor(ctx, host, port, timeout, count, as_json, pretty, include, exclude, exec_commands, exec_delay):
+    """Monitor all incoming messages from the telescope.
+    
+    Keeps the connection open and displays all messages received from the telescope.
+    By default, pretty-prints the messages. Use --json for raw JSON output.
+    
+    Event Filtering:
+        Use --include/-i to show only specific event types
+        Use --exclude/-e to hide specific event types
+        Common event types: PiStatus, Stack, Annotate, FocuserMove, View, AutoGoto
+    
+    Command Execution:
+        Use --exec to run commands after connecting (can be used multiple times)
+        Available commands: status, park, autofocus-start, autofocus-stop, solve-start, 
+                          goto:<ra>,<dec>, focus:<position>, test-connection
+    
+    Examples:
+        scopinator monitor --host 192.168.1.100              # Monitor continuously
+        scopinator monitor --timeout 30                      # Monitor for 30 seconds  
+        scopinator monitor --count 10                        # Capture 10 messages
+        scopinator monitor --json                            # Output raw JSON
+        scopinator monitor -i Stack -i Annotate              # Only show Stack and Annotate events
+        scopinator monitor -e PiStatus                       # Hide PiStatus events
+        scopinator monitor --exec status --exec autofocus-start  # Run commands after connecting
+        scopinator monitor --exec "goto:180.5,45.2"          # Go to coordinates then monitor
+    """
+    # Ensure context exists
+    if not ctx.obj:
+        ctx.obj = {}
+    
+    host = host or ctx.obj.get('host')
+    port = port or ctx.obj.get('port', 4700)
+    
+    if not host:
+        click.echo("❌ No telescope connection. Use 'connect' command first or provide --host")
+        return
+    
+    from scopinator.seestar.client import SeestarClient
+    from scopinator.seestar.commands.responses import TelescopeMessageParser
+    import time
+    
+    async def execute_command(client, command: str):
+        """Execute a command on the connected client."""
+        click.echo(f"⚡ Executing: {command}")
+        
+        try:
+            # Parse and execute different command types
+            if command == "status":
+                from scopinator.seestar.commands.simple import GetDeviceState
+                response = await client.send_and_recv(GetDeviceState())
+                if response and response.result:
+                    click.echo("   ✅ Status retrieved")
+            elif command == "park":
+                from scopinator.seestar.commands.simple import ScopePark
+                response = await client.send_and_recv(ScopePark())
+                click.echo("   ✅ Park command sent")
+            elif command == "autofocus-start":
+                from scopinator.seestar.commands.simple import StartAutoFocus
+                response = await client.send_and_recv(StartAutoFocus())
+                click.echo("   ✅ Autofocus started")
+            elif command == "autofocus-stop":
+                from scopinator.seestar.commands.simple import StopAutoFocus
+                response = await client.send_and_recv(StopAutoFocus())
+                click.echo("   ✅ Autofocus stopped")
+            elif command == "solve-start":
+                from scopinator.seestar.commands.simple import StartSolve
+                response = await client.send_and_recv(StartSolve())
+                click.echo("   ✅ Plate solve started")
+            elif command.startswith("goto:"):
+                # Parse goto coordinates
+                coords = command[5:].split(',')
+                if len(coords) == 2:
+                    ra = float(coords[0].strip())
+                    dec = float(coords[1].strip())
+                    from scopinator.seestar.commands.parameterized import GotoTarget
+                    response = await client.send_and_recv(GotoTarget(ra=ra, dec=dec))
+                    click.echo(f"   ✅ Goto RA={ra}, Dec={dec} initiated")
+                else:
+                    click.echo(f"   ❌ Invalid goto format. Use: goto:RA,DEC")
+            elif command.startswith("focus:"):
+                # Parse focus position
+                position = int(command[6:].strip())
+                from scopinator.seestar.commands.parameterized import MoveFocuser, MoveFocuserParameters
+                response = await client.send_and_recv(MoveFocuser(params=MoveFocuserParameters(step=position)))
+                click.echo(f"   ✅ Focus position set to {position}")
+            elif command == "test-connection":
+                from scopinator.seestar.commands.simple import TestConnection
+                response = await client.send_and_recv(TestConnection())
+                click.echo("   ✅ Connection test successful")
+            else:
+                click.echo(f"   ❌ Unknown command: {command}")
+        except Exception as e:
+            click.echo(f"   ❌ Error executing {command}: {e}")
+    
+    async def monitor_messages():
+        client = SeestarClient(host=host, port=port)
+        messages_received = 0
+        filtered_count = 0
+        start_time = time.time()
+        end_time = start_time + timeout if timeout else None
+        
+        # Convert filter lists to sets for faster lookup
+        include_set = set(include) if include else None
+        exclude_set = set(exclude) if exclude else set()
+        
+        try:
+            await client.connect()
+            click.echo(f"🔭 Connected to telescope at {host}:{port}")
+            
+            # Execute commands if provided
+            if exec_commands:
+                click.echo(f"⏳ Waiting {exec_delay} seconds before executing commands...")
+                await asyncio.sleep(exec_delay)
+                click.echo("🚀 Executing commands:")
+                for cmd in exec_commands:
+                    await execute_command(client, cmd)
+                click.echo("-" * 60)
+            
+            click.echo("📡 Monitoring messages...")
+            
+            if timeout:
+                click.echo(f"   Timeout: {timeout} seconds")
+            if count:
+                click.echo(f"   Message limit: {count}")
+            if include_set:
+                click.echo(f"   Including only: {', '.join(include)}")
+            if exclude_set:
+                click.echo(f"   Excluding: {', '.join(exclude)}")
+            click.echo(f"   Output format: {'JSON' if as_json else 'Pretty print'}")
+            click.echo("-" * 60)
+            
+            # Clear existing message history
+            client.message_history.clear()
+            
+            while client.is_connected:
+                # Check if we should stop
+                if end_time and time.time() >= end_time:
+                    click.echo(f"\n⏱️ Timeout reached ({timeout} seconds)")
+                    break
+                    
+                if count and messages_received >= count:
+                    click.echo(f"\n✅ Captured {count} messages")
+                    break
+                
+                # Check for new messages  
+                current_history_size = len(client.message_history)
+                if current_history_size > messages_received:
+                    # Process new messages
+                    for i in range(messages_received, current_history_size):
+                        msg = client.message_history[i]
+                        
+                        # Only show received messages (not sent)
+                        if msg.direction == "received":
+                            messages_received += 1
+                            
+                            # Determine if we should show this message based on filters
+                            should_show = True
+                            event_type = None
+                            
+                            # Try to extract event type for filtering
+                            try:
+                                import json as json_lib
+                                msg_obj = json_lib.loads(msg.message)
+                                
+                                # Check for Event messages
+                                if "Event" in msg_obj:
+                                    event_type = msg_obj.get("Event")
+                                # Check for response messages with method
+                                elif "method" in msg_obj:
+                                    event_type = msg_obj.get("method", "").split(".")[-1]  # Get last part of method
+                                # Check for jsonrpc responses
+                                elif "jsonrpc" in msg_obj and "id" in msg_obj:
+                                    event_type = "Response"
+                                    
+                            except Exception:
+                                # If we can't parse it, treat it as Unknown type
+                                event_type = "Unknown"
+                            
+                            # Apply filters
+                            if event_type:
+                                # If include list is specified, only show if event_type is in it
+                                if include_set is not None:
+                                    should_show = event_type in include_set
+                                # If exclude list is specified, don't show if event_type is in it
+                                elif exclude_set:
+                                    should_show = event_type not in exclude_set
+                            
+                            if not should_show:
+                                filtered_count += 1
+                                continue  # Skip this message
+                            
+                            if as_json:
+                                # Raw JSON output
+                                click.echo(msg.message)
+                            else:
+                                # Pretty print format
+                                display_num = messages_received - filtered_count
+                                click.echo(f"\n[{msg.timestamp}] Message #{display_num}")
+                                if event_type:
+                                    click.echo(f"Event Type: {event_type}")
+                                click.echo("-" * 40)
+                                
+                                try:
+                                    # Parse the message for better display
+                                    parsed = TelescopeMessageParser.parse_message(msg.message, msg.timestamp)
+                                    parsed_dict = parsed.model_dump()
+                                    
+                                    # Display based on message type
+                                    if 'event_type' in parsed_dict:
+                                        # Event message
+                                        click.echo("Type: EVENT")
+                                        click.echo(f"Event: {parsed_dict.get('event_type', 'Unknown')}")
+                                        if 'data' in parsed_dict and parsed_dict['data']:
+                                            click.echo("Data:")
+                                            import json as json_lib
+                                            formatted = json_lib.dumps(parsed_dict['data'], indent=2)
+                                            for line in formatted.split('\n'):
+                                                click.echo(f"  {line}")
+                                    elif 'method' in parsed_dict:
+                                        # Response message
+                                        click.echo("Type: RESPONSE")
+                                        click.echo(f"Method: {parsed_dict.get('method', 'Unknown')}")
+                                        click.echo(f"ID: {parsed_dict.get('id', 'N/A')}")
+                                        if 'result' in parsed_dict and parsed_dict['result']:
+                                            click.echo("Result:")
+                                            import json as json_lib
+                                            formatted = json_lib.dumps(parsed_dict['result'], indent=2)
+                                            for line in formatted.split('\n'):
+                                                click.echo(f"  {line}")
+                                    else:
+                                        # Unknown/raw message
+                                        click.echo("Type: RAW")
+                                        import json as json_lib
+                                        try:
+                                            msg_obj = json_lib.loads(msg.message)
+                                            formatted = json_lib.dumps(msg_obj, indent=2)
+                                            for line in formatted.split('\n'):
+                                                click.echo(f"  {line}")
+                                        except Exception:
+                                            click.echo(f"  {msg.message}")
+                                            
+                                except Exception:
+                                    # Fallback to raw display if parsing fails
+                                    click.echo("Type: UNPARSED")
+                                    click.echo(f"Raw: {msg.message}")
+                            
+                            # Check if we should stop after this message (count displayed, not total)
+                            if count and (messages_received - filtered_count) >= count:
+                                break
+                
+                # Small delay to avoid busy waiting
+                await asyncio.sleep(0.1)
+            
+            # Summary
+            elapsed = time.time() - start_time
+            click.echo("\n" + "=" * 60)
+            click.echo("📊 Monitoring Summary:")
+            click.echo(f"   Duration: {elapsed:.1f} seconds")
+            click.echo(f"   Messages received: {messages_received}")
+            click.echo(f"   Messages displayed: {messages_received - filtered_count}")
+            if filtered_count > 0:
+                click.echo(f"   Messages filtered: {filtered_count}")
+            if messages_received > 0:
+                rate = messages_received / elapsed
+                click.echo(f"   Message rate: {rate:.2f} messages/second")
+            
+            await client.disconnect()
+            
+        except KeyboardInterrupt:
+            click.echo("\n\n⚠️ Monitoring interrupted by user")
+            await client.disconnect()
+        except Exception as e:
+            click.echo(f"\n❌ Error during monitoring: {e}")
+            if client.is_connected:
+                await client.disconnect()
+    
+    asyncio.run(monitor_messages())
 
 
 @cli.command(name='reboot')
