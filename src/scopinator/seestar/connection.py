@@ -194,8 +194,8 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
             return True
         except Exception as e:
             # Only log detailed error every few attempts to avoid spam
-            if self._reconnect_attempts <= 3 or self._reconnect_attempts % 5 == 0:
-                logging.warning(
+            if self._reconnect_attempts <= 2 or self._reconnect_attempts % 10 == 0:
+                logging.info(
                     f"Reconnection attempt #{self._reconnect_attempts} failed: {e}"
                 )
             else:
@@ -219,12 +219,12 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
             if self._is_connection_reset_error(e):
                 # Reduce log verbosity for expected reboot scenarios
                 if "[Errno 54]" in str(e) or "Connection reset by peer" in str(e):
-                    logging.info(
-                        f"Connection to {self.host}:{self.port} lost (telescope may be rebooting)"
+                    logging.debug(
+                        f"Connection to {self.host}:{self.port} lost during write (telescope may be rebooting)"
                     )
                 else:
-                    logging.warning(
-                        f"Connection reset detected while writing to {self}: {e}"
+                    logging.info(
+                        f"Connection reset detected while writing to {self.host}:{self.port}"
                     )
                 await self.close()
 
@@ -267,8 +267,8 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
                         f"Connection to {self.host}:{self.port} lost during read (telescope may be rebooting)"
                     )
                 else:
-                    logging.warning(
-                        f"Connection reset detected while reading from {self}: {e}"
+                    logging.info(
+                        f"Connection reset detected while reading from {self.host}:{self.port}"
                     )
                 await self.close()
 
@@ -298,8 +298,8 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
             return data
         except Exception as e:
             if self._is_connection_reset_error(e):
-                logging.warning(
-                    f"Connection reset detected while reading exactly {n} bytes from {self}: {e}"
+                logging.debug(
+                    f"Connection reset detected while reading exactly {n} bytes from {self.host}:{self.port}"
                 )
                 await self.close()
 

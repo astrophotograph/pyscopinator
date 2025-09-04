@@ -229,8 +229,8 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                         logging.debug(f"Image received in {elapsed_ms:.1f}ms (avg: {self.status.avg_image_elapsed_ms:.1f}ms, size: {size} bytes)")
 
             except Exception as e:
-                logging.error(
-                    f"Unexpected error in imaging reader task for {self}: {e}"
+                logging.info(
+                    f"Imaging reader task error for {self.host}:{self.port}: {type(e).__name__}"
                 )
                 self.status.is_receiving_image = False
                 if self.is_connected:
@@ -544,12 +544,12 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                             self.reader_task = asyncio.create_task(self._reader())
                             logging.info(f"Connection monitor successfully reconnected {self} and restarted reader task")
                         except Exception as e:
-                            logging.warning(f"Connection monitor failed to reconnect {self}: {e}")
+                            logging.debug(f"Connection monitor failed to reconnect {self.host}:{self.port}: {type(e).__name__}")
                         finally:
                             self._reconnect_in_progress = False
                             
             except Exception as e:
-                logging.error(f"Error in connection monitor task for {self}: {e}")
+                logging.debug(f"Error in connection monitor task for {self.host}:{self.port}: {type(e).__name__}")
                 await asyncio.sleep(5.0)  # Wait before retrying
                 
         logging.debug(f"Connection monitor task stopped for {self}")

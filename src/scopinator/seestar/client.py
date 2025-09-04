@@ -1056,7 +1056,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                             self.reader_task = asyncio.create_task(self._reader())
                             logging.info(f"Connection monitor successfully reconnected {self} and restarted reader task")
                         except Exception as e:
-                            logging.warning(f"Connection monitor failed to reconnect {self}: {e}")
+                            logging.debug(f"Connection monitor failed to reconnect {self.host}:{self.port}: {type(e).__name__}")
                         finally:
                             self._reconnect_in_progress = False
                             
