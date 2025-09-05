@@ -407,7 +407,7 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
 
                         # Cache the raw image for plate solving
                         with self.cached_raw_image_lock:
-                            self.cached_raw_image = image
+                            self.cached_raw_image = self.image
 
                 await asyncio.sleep(0.1)
         except Exception as e:
