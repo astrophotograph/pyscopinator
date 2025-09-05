@@ -30,6 +30,8 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
     _reconnect_log_interval: float = 30.0
     _reboot_detected: bool = False
     _last_reboot_time: float = 0.0
+    _reconnect_lock: asyncio.Lock | None = None
+    _reconnect_in_progress: bool = False
 
     def __init__(
         self,
@@ -50,6 +52,8 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
             _should_reconnect_callback=should_reconnect_callback,
             **kwargs,
         )
+        # Initialize the lock after super().__init__
+        self._reconnect_lock = asyncio.Lock()
 
     async def open(self):
         """Open connection with Seestar."""
@@ -120,6 +124,36 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
 
     async def _reconnect_with_backoff(self) -> bool:
         """Attempt to reconnect with exponential backoff."""
+        import time
+        
+        # Use lock to prevent concurrent reconnection attempts
+        if self._reconnect_lock is None:
+            self._reconnect_lock = asyncio.Lock()
+            
+        async with self._reconnect_lock:
+            # Check if another coroutine already reconnected
+            if self.is_connected():
+                return True
+            
+            # Check if reconnection is already in progress
+            if self._reconnect_in_progress:
+                # Wait for the other reconnection attempt to complete
+                max_wait = 60  # seconds
+                start = time.time()
+                while self._reconnect_in_progress and (time.time() - start) < max_wait:
+                    await asyncio.sleep(0.5)
+                    if self.is_connected():
+                        return True
+                return self.is_connected()
+            
+            self._reconnect_in_progress = True
+            try:
+                return await self._do_reconnect_with_backoff()
+            finally:
+                self._reconnect_in_progress = False
+    
+    async def _do_reconnect_with_backoff(self) -> bool:
+        """Internal method to perform reconnection with backoff."""
         import time
         current_time = time.time()
         

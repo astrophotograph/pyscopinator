@@ -375,6 +375,17 @@ class TestDisconnectScenarios:
             commands_failed = 0
             
             for i in range(20):
+                # Skip sending commands if disconnected (after restart)
+                if not client.is_connected and i > 6:
+                    print(f"  Command {i+1}: SKIPPED (disconnected)")
+                    await asyncio.sleep(2.0)
+                    
+                    # Check if reconnected
+                    current_time = time.time() - start_time
+                    if monitor.record_state(current_time, "is_connected", client.is_connected):
+                        monitor.print_change(current_time, "is_connected", client.is_connected)
+                    continue
+                    
                 try:
                     # Send GetDeviceState command with timeout
                     response = await asyncio.wait_for(client.send_and_recv(GetDeviceState()), timeout=2.0)

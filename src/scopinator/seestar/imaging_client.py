@@ -185,10 +185,21 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                     
                     data = await self.connection.read_exactly(size)
                     if data is None:
-                        logging.warning(f"Issue while reading image data for {self}")
-                        # Connection issue during data read, continue
+                        logging.info(f"Connection interrupted while reading image data from {self.host}:{self.port}")
+                        # Connection was reset and reconnected, need to restart streaming
                         self.status.is_receiving_image = False
-                        await asyncio.sleep(0.1)
+                        
+                        # If we were streaming, try to restart it
+                        if self.status.is_streaming:
+                            logging.info(f"Restarting streaming after reconnection for {self.host}:{self.port}")
+                            try:
+                                # Send BeginStreaming command again
+                                _ = await self.send(BeginStreaming(id=21))
+                                logging.debug(f"Streaming restarted successfully for {self.host}:{self.port}")
+                            except Exception as e:
+                                logging.debug(f"Failed to restart streaming: {e}")
+                        
+                        await asyncio.sleep(0.5)  # Give it a moment to stabilize
                         continue
 
                 # print(f"Data: {data is not None} Size: {size}")
@@ -543,6 +554,15 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                             # Restart the reader task after successful reconnection
                             self.reader_task = asyncio.create_task(self._reader())
                             logging.info(f"Connection monitor successfully reconnected {self} and restarted reader task")
+                            
+                            # If we were streaming, restart it
+                            if self.status.is_streaming:
+                                logging.debug(f"Restarting streaming after connection monitor reconnection")
+                                try:
+                                    await self.send(BeginStreaming(id=21))
+                                    logging.debug(f"Streaming restarted by connection monitor")
+                                except Exception as e:
+                                    logging.debug(f"Connection monitor failed to restart streaming: {e}")
                         except Exception as e:
                             logging.debug(f"Connection monitor failed to reconnect {self.host}:{self.port}: {type(e).__name__}")
                         finally:

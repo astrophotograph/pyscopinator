@@ -2,28 +2,40 @@
 
 import asyncio
 import click
-from loguru import logger
 import sys
 import json
+import os
+from scopinator.util.logging_config import setup_logging, get_logger
 
 
 @click.group(invoke_without_command=True)
-@click.option('--debug', is_flag=True, help='Enable debug logging')
+@click.option('--debug', is_flag=True, help='Enable debug logging (shows detailed connection info)')
+@click.option('--trace', is_flag=True, help='Enable trace logging (most verbose, shows all internal operations)')
+@click.option('--quiet', is_flag=True, help='Reduce logging to warnings and errors only')
+@click.option('--log-level', type=click.Choice(['TRACE', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], case_sensitive=False),
+              help='Set explicit log level (overrides other flags)')
 @click.pass_context
-def cli(ctx, debug):
+def cli(ctx, debug, trace, quiet, log_level):
     """Scopinator - Control and manage telescopes from the command line.
     
     Use 'scopinator repl' to enter interactive mode with autocompletion.
+    
+    Logging can be controlled via:
+    - CLI flags: --debug, --trace, --quiet, --log-level
+    - Environment variables: SCOPINATOR_DEBUG=true, SCOPINATOR_TRACE=true, SCOPINATOR_LOG_LEVEL=DEBUG
     """
-    if debug:
-        logger.remove()
-        logger.add(sys.stderr, level="DEBUG")
-    else:
-        logger.remove()
-        logger.add(sys.stderr, level="INFO")
+    # Configure logging based on flags and environment
+    setup_logging(debug=debug, trace=trace, quiet=quiet, level=log_level)
+    
+    # Get a logger for the CLI
+    logger = get_logger(__name__)
     
     ctx.ensure_object(dict)
     ctx.obj['debug'] = debug
+    ctx.obj['trace'] = trace
+    ctx.obj['quiet'] = quiet
+    ctx.obj['log_level'] = log_level
+    ctx.obj['logger'] = logger
     
     # Show help if no subcommand
     if ctx.invoked_subcommand is None:
