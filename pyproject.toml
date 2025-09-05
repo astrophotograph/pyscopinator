@@ -1,6 +1,6 @@
 [project]
 name = "scopinator"
-version = "2025.9.5"
+version = "2025.9.6"
 authors = [
     { name = "Steven", email = "erewhon@flatland.org" }
 ]
