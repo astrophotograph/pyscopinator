@@ -398,19 +398,17 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                         changed = True
 
                     if changed:
-                        logging.debug(f"Image changed, yielding image for {self}")
+                        logging.trace(f"Image changed, yielding image for {self}")
                         last_image = self.image
                         # self.image = image  # Update current image
                         self.status.is_sending_image = True
                         yield self.image
                         self.status.is_sending_image = False
 
-                    # last_image = self.image
+                        # Cache the raw image for plate solving
+                        with self.cached_raw_image_lock:
+                            self.cached_raw_image = image
 
-                    # logging.trace(f"Image changed, yielding image for {self}")
-                    # self.status.is_sending_image = True
-                    # yield self.image
-                    # self.status.is_sending_image = False
                 await asyncio.sleep(0.1)
         except Exception as e:
             logging.error(f"Unexpected error in imaging reader task for {self}: {e}")
