@@ -100,6 +100,8 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
     binary_protocol: BinaryProtocol = BinaryProtocol()
     image: ScopeImage | None = None
     client_mode: Literal["ContinuousExposure", "Stack", "Streaming"] | None = None
+    cached_raw_image: Optional[ScopeImage] = None
+    cached_raw_image_lock: threading.Lock = threading.Lock()
     
     enhancement_settings_changed_event: Optional[asyncio.Event] = None
 
@@ -143,6 +145,10 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
         
         # Initialize enhancement settings changed event
         self.enhancement_settings_changed_event = asyncio.Event()
+        
+        # Initialize cached image lock
+        self.cached_raw_image_lock = threading.Lock()
+        
         self.connection = SeestarConnection(
             host=host,
             port=port,
@@ -371,6 +377,11 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                                     self.status.is_sending_image = True
                                     yield image
                                     self.status.is_sending_image = False
+
+                                    # Cache the raw image for plate solving
+                                    with self.cached_raw_image_lock:
+                                        self.cached_raw_image = image
+
                             await asyncio.sleep(0)
 
                     await asyncio.sleep(0.5)
@@ -519,10 +530,10 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
             self.enhancement_settings_changed_event.set()
             logging.info("Enhancement settings changed event triggered")
     
-    # def get_cached_raw_image(self) -> Optional[ScopeImage]:
-    #     """Get the cached raw image."""
-    #     with self.cached_raw_image_lock:
-    #         return self.cached_raw_image.copy() if self.cached_raw_image and hasattr(self.cached_raw_image, 'copy') else self.cached_raw_image
+    def get_cached_raw_image(self) -> Optional[ScopeImage]:
+        """Get the cached raw image."""
+        with self.cached_raw_image_lock:
+            return self.cached_raw_image
 
     async def _connection_monitor(self):
         """Background task that monitors connection health and manages reconnection."""
