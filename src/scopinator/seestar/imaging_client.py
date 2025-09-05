@@ -5,7 +5,11 @@ import threading
 import time
 
 import numpy as np
-from loguru import logger as logging
+from jinja2.nodes import NodeType
+
+from scopinator.seestar.commands.parameterized import IscopeStartView, IscopeStartViewParams, ScopeViewMode
+from scopinator.util.logging_config import get_logger
+logging = get_logger(__name__)
 from pydantic import BaseModel
 
 from scopinator.seestar.commands.imaging import (
@@ -19,7 +23,7 @@ from scopinator.seestar.events import (
     EventTypes,
     AnnotateResult,
     BaseEvent,
-    InternalEvent,
+    InternalEvent, ModeType,
 )
 from scopinator.seestar.protocol_handlers import BinaryProtocol, ScopeImage
 from scopinator.seestar.rtspclient import RtspClient

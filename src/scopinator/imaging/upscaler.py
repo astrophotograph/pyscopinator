@@ -5,7 +5,8 @@ from typing import Optional, Tuple
 
 import cv2
 import numpy as np
-from loguru import logger as logging
+from scopinator.util.logging_config import get_logger
+logging = get_logger(__name__)
 from skimage import restoration, filters, exposure
 
 

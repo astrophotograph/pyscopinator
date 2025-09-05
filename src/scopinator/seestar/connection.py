@@ -4,7 +4,8 @@ import asyncio
 from asyncio import StreamReader, StreamWriter, IncompleteReadError
 from typing import Callable, Optional
 from pydantic import BaseModel
-from loguru import logger as logging
+from scopinator.util.logging_config import get_logger
+logging = get_logger(__name__)
 import random
 
 

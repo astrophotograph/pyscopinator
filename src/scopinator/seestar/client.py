@@ -12,7 +12,8 @@ try:
     import tzlocal
 except ImportError:
     tzlocal = None
-from loguru import logger as logging
+from scopinator.util.logging_config import get_logger
+logging = get_logger(__name__)
 from pydantic import BaseModel
 
 from scopinator.seestar.commands.common import CommandResponse
@@ -868,6 +869,10 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
     async def scope_sync(self, in_ra: float, in_dec: float):
         """Scope sync."""
         return await self.send_and_recv(ScopeSync(params=(in_ra, in_dec)))
+
+    async def scope_view(self, mode: ScopeViewMode = 'star'):
+        """Set scope view mode."""
+        return await self.send_and_recv(IscopeStartView(params=(IscopeStartViewParams(mode=mode))))
 
     async def wait_for_event_completion(
             self, event_type: str, timeout: float = 60.0

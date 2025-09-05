@@ -5,7 +5,8 @@ from typing import Dict, Tuple, Any, Optional
 
 import numpy as np
 from PIL import Image
-from loguru import logger as logging
+from scopinator.util.logging_config import get_logger
+logging = get_logger(__name__)
 
 try:
     from astropy.io import fits

@@ -5,6 +5,9 @@ import click
 import sys
 import json
 import os
+
+from scopinator.seestar.commands.imaging import BeginStreaming
+from scopinator.seestar.commands.parameterized import IscopeStartView
 from scopinator.util.logging_config import setup_logging, get_logger
 
 
@@ -2281,6 +2284,7 @@ def stream_images(ctx, host, port, duration, count, as_json, save, save_video, f
                     click.echo("⚠️ Scenery view command sent but no confirmation")
             else:
                 click.echo("🎬 Starting image stream (BeginStreaming)...")
+                await client.scope_view()
                 await imaging_client.start_streaming()
             
             await asyncio.sleep(1)  # Give it a moment to start

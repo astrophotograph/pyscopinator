@@ -3,7 +3,8 @@
 import readline
 import click
 from typing import List, Optional
-from loguru import logger
+from scopinator.util.logging_config import get_logger
+logger = get_logger(__name__)
 
 
 class SimpleCompleter:

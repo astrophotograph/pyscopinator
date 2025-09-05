@@ -12,7 +12,8 @@ import numpy as np
 import numpy.typing as npt
 
 import cv2
-from loguru import logger as logging
+from scopinator.util.logging_config import get_logger
+logging = get_logger(__name__)
 from pydantic import BaseModel
 
 from scopinator.seestar.commands.common import CommandResponse

@@ -3,7 +3,8 @@
 import asyncio
 import click
 from typing import List, Tuple
-from loguru import logger
+from scopinator.util.logging_config import get_logger
+logger = get_logger(__name__)
 
 
 async def discover_telescopes(timeout: float = 10.0) -> List[Tuple[str, int]]:

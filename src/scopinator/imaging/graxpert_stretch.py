@@ -7,6 +7,9 @@ from skimage.util import img_as_float32
 from scopinator.imaging.image_processor import ImageProcessor
 from scopinator.imaging.stretch import stretch, StretchParameters, StretchParameter
 from scopinator.imaging.upscaler import ImageEnhancementProcessor, UpscalingMethod, SharpeningMethod, DenoiseMethod
+from scopinator.util.logging_config import get_logger
+
+logging = get_logger(__name__)
 
 
 class GraxpertStretch(ImageProcessor):
@@ -17,8 +20,6 @@ class GraxpertStretch(ImageProcessor):
     def process(
         self, image: np.ndarray, stretch_parameter: Optional[StretchParameter] = None
     ) -> Optional[np.ndarray]:
-        from loguru import logger as logging
-        
         # Use provided parameter or default
         stretch_param = stretch_parameter or self.stretch_parameter
         
@@ -107,7 +108,6 @@ class GraxpertStretch(ImageProcessor):
         strength: float = 1.0,
     ):
         """Configure denoising parameters."""
-        from loguru import logger as logging
         logging.trace(f"GraxpertStretch.set_denoise_params: enabled={enabled}, method={method}, strength={strength}")
         self.enhancement_processor.denoise_enabled = enabled
         self.enhancement_processor.denoise_method = method
@@ -120,7 +120,6 @@ class GraxpertStretch(ImageProcessor):
         psf_size: float = 2.0,
     ):
         """Configure deconvolution parameters."""
-        from loguru import logger as logging
         logging.trace(f"GraxpertStretch.set_deconvolve_params: enabled={enabled}, strength={strength}, psf_size={psf_size}")
         self.enhancement_processor.set_deconvolve_params(enabled, strength, psf_size)
     

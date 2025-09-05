@@ -8,7 +8,8 @@ from typing import Any, Optional
 import cv2
 import numpy.typing as npt
 from PIL import Image
-from loguru import logger as logging
+from scopinator.util.logging_config import get_logger
+logging = get_logger(__name__)
 
 # Suppress FFmpeg/H.264 decoder warnings
 # These are common with RTSP streams and usually harmless

@@ -5,7 +5,8 @@ import json
 import socket
 import ipaddress
 from typing import List, Tuple, Set
-from loguru import logger as logging
+from scopinator.util.logging_config import get_logger
+logging = get_logger(__name__)
 
 # Global registry to track known telescopes and avoid duplicate logging
 _known_telescopes: Set[str] = set()
