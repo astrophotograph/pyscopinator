@@ -25,7 +25,7 @@ dependencies = [
     "numpy-typing>=1.1.1",
     "opencv-python",
     "psutil>=5.9.8",
-    "pillow>=11.3.0",
+    "pillow",
 ]
 
 [project.scripts]
