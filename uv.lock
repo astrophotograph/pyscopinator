@@ -529,7 +529,7 @@ wheels = [
 
 [[package]]
 name = "scopinator"
-version = "2025.9.4"
+version = "2025.9.6"
 source = { editable = "." }
 dependencies = [
     { name = "beartype" },
@@ -561,7 +561,7 @@ requires-dist = [
     { name = "click-completion", specifier = ">=0.5.2" },
     { name = "click-repl", specifier = ">=0.3.0" },
     { name = "loguru" },
-    { name = "numpy", specifier = ">=2.3.2" },
+    { name = "numpy" },
     { name = "numpy-typing", specifier = ">=1.1.1" },
     { name = "opencv-python", specifier = ">=4.11.0.86" },
     { name = "pillow", specifier = ">=11.3.0" },

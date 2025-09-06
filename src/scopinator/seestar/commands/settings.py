@@ -66,6 +66,7 @@ class SettingParameters(BaseModel):
     # stack_l: Optional[int] = None
     # auto_power_off: Optional[bool] = None
     # is_frame_calibrated: Optional[bool] = None
+    # drizzle2x: boolean
 
 
 class SetSetting(BaseCommand):

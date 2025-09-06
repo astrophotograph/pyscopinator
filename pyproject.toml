@@ -21,7 +21,7 @@ dependencies = [
     "beartype",
     "pydash",
     "tzlocal",
-    "numpy>=2.3.2",
+    "numpy",
     "numpy-typing>=1.1.1",
     "opencv-python>=4.11.0.86",
     "psutil>=5.9.8",
