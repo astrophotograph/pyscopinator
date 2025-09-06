@@ -529,7 +529,7 @@ wheels = [
 
 [[package]]
 name = "scopinator"
-version = "2025.9.7"
+version = "2025.9.8"
 source = { editable = "." }
 dependencies = [
     { name = "beartype" },
