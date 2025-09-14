@@ -173,6 +173,11 @@ class StopAutoFocus(BaseCommand):
     method: Literal["stop_auto_focuse"] = "stop_auto_focuse"
 
 
+class StartScanPlanet(BaseCommand):
+    """Start the scan plan from the Seestar."""
+    method: Literal["start_scan_planet"] = "start_scan_planet"
+
+
 class StartSolve(BaseCommand):
     """Start the solve from the Seestar."""
 

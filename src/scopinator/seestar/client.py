@@ -8,11 +8,13 @@ from pathlib import Path
 from typing import TypeVar, Literal, Any, Dict
 
 import pydash
+
 try:
     import tzlocal
 except ImportError:
     tzlocal = None
 from scopinator.util.logging_config import get_logger
+
 logging = get_logger(__name__)
 from pydantic import BaseModel
 
@@ -82,7 +84,7 @@ class SeestarStatus(BaseModel):
     totalMB: int | None = None
     ra: float | None = None
     dec: float | None = None
-    dist_deg: float | None = None # Distance from the telescope to the target in degrees
+    dist_deg: float | None = None  # Distance from the telescope to the target in degrees
     percent: float | None = None
     balance_sensor: BalanceSensorInfo | None = None
     device_state: dict | None = None  # Full device state info including mount, station, etc.
@@ -140,7 +142,8 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
     responses: dict[int, dict] = {}
     recent_events: collections.deque = collections.deque(maxlen=5)
     text_protocol: TextProtocol = TextProtocol()
-    client_mode: Literal["Initialise", "ContinuousExposure", "Stack", "Streaming", "AutoGoto", "AutoFocus", "Idle"] | None = "Idle"
+    client_mode: Literal[
+                     "Initialise", "ContinuousExposure", "Stack", "Streaming", "AutoGoto", "AutoFocus", "Idle"] | None = "Idle"
     message_history: collections.deque = collections.deque(maxlen=5000)
 
     # Image enhancement settings
@@ -156,7 +159,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
     read_timeout: float = 30.0
     write_timeout: float = 10.0
     device_state_refresh_interval: float = 30.0  # Refresh device state every 30 seconds
-    
+
     # Connection monitoring
     connection_monitor_task: asyncio.Task | None = None
     _last_successful_read: float = 0.0
@@ -178,7 +181,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
         if event_bus is None:
             from scopinator.util.eventbus import EventBus
             event_bus = EventBus()
-            
+
         super().__init__(
             host=host,
             port=port,
@@ -209,7 +212,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                     # Update last successful read timestamp
                     import time
                     self._last_successful_read = time.time()
-                    
+
                     # Log received message
                     self.message_history.append(
                         TelescopeMessage(
@@ -353,7 +356,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                 response = await self.send_and_recv(GetDiskVolume())
                 self.status.freeMB = response.result.get("freeMB")
                 self.status.totalMB = response.result.get("totalMB")
-                
+
                 # Refresh device state every 30 seconds
                 import time
                 current_time = time.time()
@@ -463,7 +466,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
             # Ensure annotate_result is an AnnotateResult instance
             if not isinstance(annotate_result, AnnotateResult):
                 annotate_result = AnnotateResult(**annotate_result) if isinstance(annotate_result, dict) else None
-            
+
             if annotate_result:
                 annotation = AnnotateEvent(
                     Timestamp=datetime.now().isoformat(),
@@ -537,7 +540,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
 
     async def connect(self):
         await self.connection.open()
-        
+
         # Cancel any existing reader task before starting a new one
         # This prevents duplicate readers after reconnection
         if self.reader_task:
@@ -548,7 +551,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
             except asyncio.CancelledError:
                 pass
             self.reader_task = None
-        
+
         self.is_connected = True
         self.status.reset()
 
@@ -669,7 +672,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                         self.status.charge_online = pi_status.charge_online
                     if pi_status.battery_capacity is not None:
                         self.status.battery_capacity = pi_status.battery_capacity
-                    
+
                     # Store pi_status for battery temperature and other fields
                     self.status.pi_status = {
                         'battery_temp': getattr(pi_status, 'battery_temp', None),
@@ -690,7 +693,8 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                     annotate_event = AnnotateEvent(**parser.event)
                     # Ensure result is an AnnotateResult instance if it exists
                     if annotate_event.result and not isinstance(annotate_event.result, AnnotateResult):
-                        annotate_event.result = AnnotateResult(**annotate_event.result) if isinstance(annotate_event.result, dict) else None
+                        annotate_event.result = AnnotateResult(**annotate_event.result) if isinstance(
+                            annotate_event.result, dict) else None
                     self.status.annotate = annotate_event.result
                     self.event_bus.emit("Annotate", annotate_event)
                 case "FocuserMove":
@@ -846,11 +850,17 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
             lp_filter: bool = False,
     ):
         """Generalized goto."""
+        # For moon and sun modes, don't send coordinates.  Let scope try to find them.
+        if target_type == 'moon' or target_type == 'sun':
+            coords = None
+        else:
+            coords = (in_ra, in_dec)
+
         return await self.send_and_recv(
             IscopeStartView(
                 params=IscopeStartViewParams(
                     mode=mode,
-                    target_ra_dec=(in_ra, in_dec),
+                    target_ra_dec=coords,
                     target_name=target_name,
                     target_type=target_type,
                     lp_filter=lp_filter,
@@ -995,15 +1005,15 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
 
         settings = [
             SettingParameters(lang="en"),
-            SettingParameters(auto_af=True), # ??
-            SettingParameters(stack_after_goto=False), #  New in firmware 2.1
+            SettingParameters(auto_af=True),  # ??
+            SettingParameters(stack_after_goto=False),  # New in firmware 2.1
             SettingParameters(exp_ms={"stack_l": 1, "continuous": 1}),
             SettingParameters(stack_dither={
                 "enable": True,
                 "pix": 1,
                 "interval": 1,
             }),
-            SettingParameters(stack={"dbe": False}), # ???
+            SettingParameters(stack={"dbe": False}),  # ???
             SettingParameters(frame_calib=False),
         ]
         for setting in settings:
@@ -1029,14 +1039,14 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
     async def _connection_monitor(self):
         """Background task that monitors connection health and manages reconnection."""
         logging.info(f"Starting connection monitor task for {self}")
-        
+
         while self.is_connected:
             try:
                 await asyncio.sleep(self._connection_check_interval)
-                
+
                 if not self.is_connected:
                     break
-                    
+
                 # Check if we should attempt reconnection
                 if not self.connection.is_connected() and self._should_attempt_reconnection():
                     if not self._reconnect_in_progress:
@@ -1053,24 +1063,26 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                                 except asyncio.CancelledError:
                                     pass
                                 self.reader_task = None
-                            
+
                             # Reconnect and restart the reader task
                             await self.connection.open()
-                            
+
                             # Restart the reader task after successful reconnection
                             self.reader_task = asyncio.create_task(self._reader())
-                            logging.info(f"Connection monitor successfully reconnected {self} and restarted reader task")
+                            logging.info(
+                                f"Connection monitor successfully reconnected {self} and restarted reader task")
                         except Exception as e:
-                            logging.debug(f"Connection monitor failed to reconnect {self.host}:{self.port}: {type(e).__name__}")
+                            logging.debug(
+                                f"Connection monitor failed to reconnect {self.host}:{self.port}: {type(e).__name__}")
                         finally:
                             self._reconnect_in_progress = False
-                            
+
             except Exception as e:
                 logging.error(f"Error in connection monitor task for {self}: {e}")
                 await asyncio.sleep(5.0)  # Wait before retrying
-                
+
         logging.debug(f"Connection monitor task stopped for {self}")
-    
+
     def _should_attempt_reconnection(self) -> bool:
         """Determine if reconnection should be attempted based on client state."""
         # Always attempt reconnection for main client unless explicitly disconnected
@@ -1080,7 +1092,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
         """Async context manager entry - connects to the telescope."""
         await self.connect()
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit - disconnects from the telescope."""
         await self.disconnect()

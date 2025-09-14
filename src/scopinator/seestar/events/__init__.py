@@ -86,6 +86,16 @@ class RTSPEvent(BaseEvent):
     route: list[Any] = []
 
 
+class ScanSunEvent(BaseEvent):
+    """Scan sun event."""
+    Event: Literal["ScanSun"] = "ScanSun"
+    state: EventState = None
+    lapse_ms: int = 0
+    error: str | None = None
+    code: int = 0
+    route: list[Any] = []
+
+
 class ScopeMoveToHorizonEvent(BaseEvent):
     """Scope move to horizon event."""
 
