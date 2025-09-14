@@ -389,6 +389,7 @@ EventTypes = Annotated[
     | PlateSolveEvent
     | RTSPEvent
     | SaveImageEvent
+    | ScanSunEvent
     | ScopeGotoEvent
     | ScopeHomeEvent
     | ScopeMoveToHorizonEvent
