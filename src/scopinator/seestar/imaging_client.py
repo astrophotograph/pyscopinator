@@ -99,6 +99,7 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
     event_bus: EventBus | None = None
     binary_protocol: BinaryProtocol = BinaryProtocol()
     image: ScopeImage | None = None
+    secondary_image: ScopeImage | None = None # There could be a secondary camera.  Currently only applies to Streaming mode.
     client_mode: Literal["ContinuousExposure", "Stack", "Streaming"] | None = None
     cached_raw_image: Optional[ScopeImage] = None
     cached_raw_image_lock: threading.Lock = threading.Lock()
@@ -373,20 +374,25 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                                 
                                 if changed:
                                     last_image = image
-                                    self.image = image  # Update current image
+                                    # I don't think we need to actually store the image if we're streaming?
+                                    #if camera_id == 0:
+                                    #    self.image = image  # Update current image
+                                    #else:
+                                    #    self.secondary_image = image
                                     self.status.is_sending_image = True
                                     yield image
                                     self.status.is_sending_image = False
 
-                                    # Cache the raw image for plate solving
-                                    with self.cached_raw_image_lock:
-                                        self.cached_raw_image = image
+                                    # Cache the raw image for plate solving (this doesn't apply to streaming modes!)
+                                    #with self.cached_raw_image_lock:
+                                    #    self.cached_raw_image = image
 
                             await asyncio.sleep(0)
 
                     await asyncio.sleep(0.5)
                     continue
 
+                # Star mode only
                 if self.image is not None and self.image.image is not None:
                     # Check if image has changed from the last one we sent
                     if last_image.image is not None:
