@@ -17,29 +17,48 @@ from scopinator.util.logging_config import setup_logging, get_logger
 @click.option('--quiet', is_flag=True, help='Reduce logging to warnings and errors only')
 @click.option('--log-level', type=click.Choice(['TRACE', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], case_sensitive=False),
               help='Set explicit log level (overrides other flags)')
+@click.option('--protocol', '-P', type=click.Choice(['seestar', 'alpaca', 'indi', 'auto']),
+              default='auto', help='Protocol to use (default: auto-detect)')
+@click.option('--profile', '-p', help='Use a saved profile by name')
 @click.pass_context
-def cli(ctx, debug, trace, quiet, log_level):
+def cli(ctx, debug, trace, quiet, log_level, protocol, profile):
     """Scopinator - Control and manage telescopes from the command line.
-    
+
     Use 'scopinator repl' to enter interactive mode with autocompletion.
-    
+
     Logging can be controlled via:
     - CLI flags: --debug, --trace, --quiet, --log-level
     - Environment variables: SCOPINATOR_DEBUG=true, SCOPINATOR_TRACE=true, SCOPINATOR_LOG_LEVEL=DEBUG
+
+    Protocol selection:
+    - Use --protocol to specify which protocol to use (seestar, alpaca, indi)
+    - Use --profile to load a saved telescope profile
     """
     # Configure logging based on flags and environment
     setup_logging(debug=debug, trace=trace, quiet=quiet, level=log_level)
-    
+
     # Get a logger for the CLI
     logger = get_logger(__name__)
-    
+
     ctx.ensure_object(dict)
     ctx.obj['debug'] = debug
     ctx.obj['trace'] = trace
     ctx.obj['quiet'] = quiet
     ctx.obj['log_level'] = log_level
     ctx.obj['logger'] = logger
-    
+    ctx.obj['protocol'] = protocol
+    ctx.obj['profile_name'] = profile
+
+    # Load profile if specified
+    if profile:
+        from scopinator.cli.commands.profile import load_profile
+        loaded_profile = load_profile(profile)
+        if loaded_profile:
+            ctx.obj['profile'] = loaded_profile
+            logger.debug(f"Loaded profile: {profile}")
+        else:
+            click.echo(f"Warning: Profile '{profile}' not found", err=True)
+
     # Show help if no subcommand
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
@@ -47,6 +66,10 @@ def cli(ctx, debug, trace, quiet, log_level):
 # Register the enhanced REPL command
 from scopinator.cli.repl_enhanced import register_enhanced_repl
 register_enhanced_repl(cli)
+
+# Register profile management commands
+from scopinator.cli.commands.profile import profile as profile_group
+cli.add_command(profile_group)
 
 
 @cli.command()
