@@ -108,51 +108,89 @@ class AlpacaDiscovery:
             return {}
 
 
-async def discover_alpaca_servers(timeout: float = 5.0) -> list[dict[str, Any]]:
+async def discover_alpaca_servers(
+    timeout: float = 5.0,
+    num_queries: int = 2,
+) -> list[dict[str, Any]]:
     """Discover Alpaca servers on the local network via UDP broadcast.
 
-    Alpaca servers respond to UDP broadcasts on port 32227 with their
-    location information.
+    Sends the "alpacadiscovery1" message to UDP port 32227 and collects
+    responses containing {"AlpacaPort": <port>}.
+
+    See: https://ascom-standards.org/AlpacaDeveloper/ASCOMAlpacaAPIReference.html
 
     Args:
         timeout: Discovery timeout in seconds
+        num_queries: Number of discovery broadcasts to send
 
     Returns:
-        List of discovered server info dicts with 'host' and 'port'
+        List of discovered server info dicts with 'host' and 'AlpacaPort'
     """
-    discovered: list[dict[str, Any]] = []
+    import json
 
-    # Create UDP socket
+    discovered: dict[str, dict[str, Any]] = {}  # keyed by host to dedupe
+
+    # Create UDP socket for sending broadcasts
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    sock.settimeout(timeout)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+    # Enable port reuse on non-Windows
+    if hasattr(socket, "SO_REUSEPORT"):
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+
+    sock.setblocking(False)
+
+    # Bind to any available port to receive responses
+    sock.bind(("", 0))
+
+    loop = asyncio.get_event_loop()
 
     try:
-        # Send discovery broadcast
-        # Alpaca discovery uses "alpacadiscovery1" as the message
+        # Send discovery broadcasts
         message = b"alpacadiscovery1"
-        sock.sendto(message, ("<broadcast>", AlpacaDiscovery.ALPACA_DISCOVERY_PORT))
+        broadcast_addr = ("<broadcast>", AlpacaDiscovery.ALPACA_DISCOVERY_PORT)
 
-        # Collect responses
-        end_time = asyncio.get_event_loop().time() + timeout
-        while asyncio.get_event_loop().time() < end_time:
+        for _ in range(num_queries):
+            sock.sendto(message, broadcast_addr)
+            await asyncio.sleep(0.1)  # Small delay between queries
+
+        # Collect responses until timeout
+        end_time = loop.time() + timeout
+
+        while loop.time() < end_time:
+            remaining = end_time - loop.time()
+            if remaining <= 0:
+                break
+
             try:
-                data, addr = sock.recvfrom(1024)
+                # Use asyncio to wait for data with timeout
+                data, addr = await asyncio.wait_for(
+                    loop.run_in_executor(None, lambda: sock.recvfrom(1024)),
+                    timeout=min(remaining, 0.5),
+                )
                 response = data.decode("utf-8")
-
-                # Parse response - format is typically JSON
-                import json
 
                 try:
                     info = json.loads(response)
-                    info["host"] = addr[0]
-                    discovered.append(info)
+                    host = addr[0]
+                    # Standard response format: {"AlpacaPort": <port>}
+                    if "AlpacaPort" in info:
+                        info["host"] = host
+                        discovered[host] = info
                 except json.JSONDecodeError:
-                    # Response might be plain text with port
-                    discovered.append({"host": addr[0], "raw": response})
-            except socket.timeout:
+                    # Non-JSON response, store raw
+                    discovered[addr[0]] = {"host": addr[0], "raw": response}
+
+            except asyncio.TimeoutError:
+                continue
+            except BlockingIOError:
+                await asyncio.sleep(0.1)
+                continue
+            except OSError:
                 break
+
     finally:
         sock.close()
 
-    return discovered
+    return list(discovered.values())
