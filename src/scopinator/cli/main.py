@@ -293,29 +293,52 @@ def connect(ctx, host, port, timeout):
             ctx.obj['port'] = final_port
             ctx.obj['protocol'] = protocol
 
-            # Get status info
-            status = await client.get_status()
+            # Try to get status info (non-fatal if fails)
+            try:
+                status = await client.get_status()
 
-            if status.get('battery'):
-                click.echo(f"🔋 Battery: {status['battery']}%")
-            if status.get('temperature'):
-                click.echo(f"🌡️ Temperature: {status['temperature']}°C")
-            if status.get('ra') is not None and status.get('dec') is not None:
-                click.echo(f"📍 Position: RA {status['ra']:.4f}°, Dec {status['dec']:.4f}°")
+                if status.get('battery'):
+                    click.echo(f"   Battery: {status['battery']}%")
+                if status.get('temperature'):
+                    click.echo(f"   Temperature: {status['temperature']}C")
+                if status.get('ra') is not None and status.get('dec') is not None:
+                    click.echo(f"   Position: RA {status['ra']:.4f}, Dec {status['dec']:.4f}")
+            except Exception:
+                pass  # Status retrieval is optional
 
             await client.disconnect()
             return True
 
         except asyncio.TimeoutError:
-            click.echo(f"❌ Connection timed out after {timeout}s")
+            click.echo(f"Connection timed out after {timeout}s")
             return False
         except Exception as e:
-            click.echo(f"❌ Failed to connect: {e}")
+            click.echo(f"Failed to connect: {e}")
             return False
 
     success = asyncio.run(test_connection())
     if success:
+        # Persist connection state to disk
+        from scopinator.cli.connection_state import save_connection_state
+        save_connection_state(protocol, host, final_port)
         click.echo("\nConnection saved. Use other commands to control the telescope.")
+
+
+@cli.command()
+def disconnect():
+    """Clear saved connection state.
+
+    This removes the saved connection info, requiring you to
+    specify --host again or use 'connect' to save new info.
+    """
+    from scopinator.cli.connection_state import clear_connection_state, load_connection_state
+
+    state = load_connection_state()
+    if state:
+        clear_connection_state()
+        click.echo(f"Cleared connection to {state.get('host')}:{state.get('port')} ({state.get('protocol')})")
+    else:
+        click.echo("No saved connection to clear.")
 
 
 @cli.command()

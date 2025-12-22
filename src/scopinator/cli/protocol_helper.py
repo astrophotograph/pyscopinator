@@ -240,7 +240,8 @@ def get_protocol_and_connection(ctx: click.Context, host: Optional[str], port: O
     Priority:
     1. Explicit --host/--port options
     2. Profile settings
-    3. Context defaults
+    3. Saved connection state
+    4. Context defaults
 
     Args:
         ctx: Click context
@@ -250,9 +251,11 @@ def get_protocol_and_connection(ctx: click.Context, host: Optional[str], port: O
     Returns:
         Tuple of (protocol, host, port)
     """
+    from scopinator.cli.connection_state import load_connection_state
+
     ctx_obj = ctx.obj or {}
 
-    # Get protocol
+    # Get protocol from CLI option
     protocol = ctx_obj.get("protocol", "auto")
 
     # Check if we have a loaded profile
@@ -267,25 +270,35 @@ def get_protocol_and_connection(ctx: click.Context, host: Optional[str], port: O
         profile_host = None
         profile_port = None
 
-    # Determine final values
-    # Host: command option > profile > context
-    final_host = host or profile_host or ctx_obj.get("host")
+    # Load saved connection state
+    saved_state = load_connection_state()
+    saved_host = saved_state.get("host") if saved_state else None
+    saved_port = saved_state.get("port") if saved_state else None
+    saved_protocol = saved_state.get("protocol") if saved_state else None
 
-    # Protocol: explicit option > profile > auto-detect
+    # Determine final values
+    # Host: command option > profile > saved state > context
+    final_host = host or profile_host or saved_host or ctx_obj.get("host")
+
+    # Protocol: explicit option > profile > saved state > auto-detect
     if protocol == "auto":
         if profile_protocol:
             final_protocol = profile_protocol
+        elif saved_protocol:
+            final_protocol = saved_protocol
         else:
             # Default to seestar for backwards compatibility
             final_protocol = "seestar"
     else:
         final_protocol = protocol
 
-    # Port: command option > profile > protocol default
+    # Port: command option > profile > saved state > protocol default
     if port:
         final_port = port
     elif profile_port:
         final_port = profile_port
+    elif saved_port:
+        final_port = saved_port
     else:
         final_port = DEFAULT_PORTS.get(final_protocol, 4700)
 

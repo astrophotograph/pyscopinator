@@ -194,3 +194,38 @@ async def discover_alpaca_servers(
         sock.close()
 
     return list(discovered.values())
+
+
+async def discover_alpaca_devices(
+    host: str,
+    port: int = 11111,
+    timeout: float = 5.0,
+) -> list[dict[str, Any]]:
+    """Discover devices on a specific Alpaca server.
+
+    Queries the management API to get configured devices.
+
+    Args:
+        host: Alpaca server hostname or IP
+        port: Alpaca server port
+        timeout: Request timeout in seconds
+
+    Returns:
+        List of device info dicts with device_type, device_name, device_number
+    """
+    try:
+        async with aiohttp.ClientSession() as session:
+            discovery = AlpacaDiscovery(session, f"http://{host}:{port}", timeout=timeout)
+            devices = await discovery.get_configured_devices()
+
+            result = []
+            for device_type, device_list in devices.items():
+                for d in device_list:
+                    result.append({
+                        "device_type": device_type,
+                        "device_name": d.get("DeviceName", ""),
+                        "device_number": d.get("DeviceNumber", 0),
+                    })
+            return result
+    except Exception:
+        return []
