@@ -22,14 +22,24 @@ from scopinator.seestar.commands.common import CommandResponse
 from scopinator.seestar.commands.parameterized import (
     IscopeStopView,
     IscopeStartView,
-    IscopeStartViewParams, ScopeViewMode, ScopeTargetType,
+    IscopeStartViewParams,
+    ScopeViewMode,
+    ScopeTargetType,
 )
 from scopinator.seestar.commands.responses import (
     TelescopeMessageParser,
     MessageAnalytics,
 )
-from scopinator.seestar.commands.settings import SetUserLocation, SetUserLocationParameters, PiSetTime, \
-    PiSetTimeParameter, SetSetting, SettingParameters, SetStackSetting, SetStackSettingParameters
+from scopinator.seestar.commands.settings import (
+    SetUserLocation,
+    SetUserLocationParameters,
+    PiSetTime,
+    PiSetTimeParameter,
+    SetSetting,
+    SettingParameters,
+    SetStackSetting,
+    SetStackSettingParameters,
+)
 from scopinator.seestar.commands.simple import (
     GetTime,
     GetDeviceState,
@@ -37,7 +47,10 @@ from scopinator.seestar.commands.simple import (
     GetFocuserPosition,
     GetDiskVolume,
     ScopeGetEquCoord,
-    ScopeSync, PiIsVerified, BalanceSensorInfo, GetDeviceStateResponse,
+    ScopeSync,
+    PiIsVerified,
+    BalanceSensorInfo,
+    GetDeviceStateResponse,
 )
 from scopinator.seestar.connection import SeestarConnection
 from scopinator.seestar.events import (
@@ -66,7 +79,9 @@ class SeestarStatus(BaseModel):
     """Seestar status."""
 
     temp: float | None = None
-    charger_status: Literal["Discharging", "Charging", "Full", "Not charging"] | None = None
+    charger_status: (
+        Literal["Discharging", "Charging", "Full", "Not charging"] | None
+    ) = None
     stage: str | None = None
     charge_online: bool | None = None
     battery_capacity: int | None = None
@@ -84,12 +99,18 @@ class SeestarStatus(BaseModel):
     totalMB: int | None = None
     ra: float | None = None
     dec: float | None = None
-    dist_deg: float | None = None  # Distance from the telescope to the target in degrees
+    dist_deg: float | None = (
+        None  # Distance from the telescope to the target in degrees
+    )
     percent: float | None = None
     balance_sensor: BalanceSensorInfo | None = None
-    device_state: dict | None = None  # Full device state info including mount, station, etc.
+    device_state: dict | None = (
+        None  # Full device state info including mount, station, etc.
+    )
     pi_status: dict | None = None  # Pi status info including battery temp
-    last_device_state_update: float | None = None  # Timestamp of last device state update
+    last_device_state_update: float | None = (
+        None  # Timestamp of last device state update
+    )
 
     def reset(self):
         self.temp = None
@@ -128,7 +149,9 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
     host: str
     port: int
     event_bus: EventBus | None = None
-    websocket_manager: Any | None = None  # WebSocketManager - using Any to avoid circular import
+    websocket_manager: Any | None = (
+        None  # WebSocketManager - using Any to avoid circular import
+    )
     telescope_id: str | None = None
     connection: SeestarConnection | None = None
     # Start counter at 100 to not conflict with some lower, hardcoded IDs
@@ -142,8 +165,18 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
     responses: dict[int, dict] = {}
     recent_events: collections.deque = collections.deque(maxlen=5)
     text_protocol: TextProtocol = TextProtocol()
-    client_mode: Literal[
-                     "Initialise", "ContinuousExposure", "Stack", "Streaming", "AutoGoto", "AutoFocus", "Idle"] | None = "Idle"
+    client_mode: (
+        Literal[
+            "Initialise",
+            "ContinuousExposure",
+            "Stack",
+            "Streaming",
+            "AutoGoto",
+            "AutoFocus",
+            "Idle",
+        ]
+        | None
+    ) = "Idle"
     message_history: collections.deque = collections.deque(maxlen=5000)
 
     # Image enhancement settings
@@ -167,19 +200,20 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
     _reconnect_in_progress: bool = False
 
     def __init__(
-            self,
-            host: str,
-            port: int,
-            event_bus: EventBus | None = None,
-            websocket_manager: Any = None,
-            telescope_id: str = None,
-            connection_timeout: float = 10.0,
-            read_timeout: float = 30.0,
-            write_timeout: float = 10.0,
+        self,
+        host: str,
+        port: int,
+        event_bus: EventBus | None = None,
+        websocket_manager: Any = None,
+        telescope_id: str = None,
+        connection_timeout: float = 10.0,
+        read_timeout: float = 30.0,
+        write_timeout: float = 10.0,
     ):
         # Create an EventBus if none provided
         if event_bus is None:
             from scopinator.util.eventbus import EventBus
+
             event_bus = EventBus()
 
         super().__init__(
@@ -211,6 +245,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                 if response_str is not None:
                     # Update last successful read timestamp
                     import time
+
                     self._last_successful_read = time.time()
 
                     # Log received message
@@ -277,14 +312,14 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
 
                 # Check if file has been modified or grown
                 if (
-                        last_modified_time is None
-                        or current_modified_time > last_modified_time
-                        or current_size > last_file_size
+                    last_modified_time is None
+                    or current_modified_time > last_modified_time
+                    or current_size > last_file_size
                 ):
                     # Read the file content
                     try:
                         with open(
-                                file_path, "r", encoding="utf-8", errors="ignore"
+                            file_path, "r", encoding="utf-8", errors="ignore"
                         ) as f:
                             content = f.read()
 
@@ -359,6 +394,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
 
                 # Refresh device state every 30 seconds
                 import time
+
                 current_time = time.time()
                 if current_time - last_device_state_update > 30:
                     try:
@@ -373,7 +409,9 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                         logging.error(f"Failed to refresh device state: {e}")
             await asyncio.sleep(15)
 
-    def _update_client_mode(self, stage: str, state: str = "unknown", mode: str | None = None):
+    def _update_client_mode(
+        self, stage: str, state: str = "unknown", mode: str | None = None
+    ):
         """Update client mode."""
         if state != "cancel":
             if stage == "ContinuousExposure":
@@ -391,7 +429,9 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
             else:
                 # Stage isn't a known active stage, default to Idle for safety
                 # This prevents the frontend from trying to load streams when the telescope state is unknown
-                logging.warning(f"Unknown stage: {stage=} {mode=} {state=} - defaulting to Idle")
+                logging.warning(
+                    f"Unknown stage: {stage=} {mode=} {state=} - defaulting to Idle"
+                )
                 new_client_mode = "ContinuousExposure"
         else:
             new_client_mode = "Idle"
@@ -409,7 +449,10 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                     "ClientModeChanged",
                     InternalEvent(
                         Timestamp=datetime.now().isoformat(),
-                        params={"existing": old_client_mode, "new_mode": new_client_mode},
+                        params={
+                            "existing": old_client_mode,
+                            "new_mode": new_client_mode,
+                        },
                     ),
                 )
 
@@ -420,9 +463,15 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
             if self.websocket_manager and self.telescope_id:
                 try:
                     # Create a task to handle the async websocket broadcast
-                    asyncio.create_task(self._broadcast_client_mode_change(old_client_mode, new_client_mode))
+                    asyncio.create_task(
+                        self._broadcast_client_mode_change(
+                            old_client_mode, new_client_mode
+                        )
+                    )
                 except Exception as e:
-                    logging.error(f"Error broadcasting client mode change to websocket: {e}")
+                    logging.error(
+                        f"Error broadcasting client mode change to websocket: {e}"
+                    )
         else:
             self.client_mode = new_client_mode
 
@@ -465,7 +514,11 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
         if annotate_result is not None:
             # Ensure annotate_result is an AnnotateResult instance
             if not isinstance(annotate_result, AnnotateResult):
-                annotate_result = AnnotateResult(**annotate_result) if isinstance(annotate_result, dict) else None
+                annotate_result = (
+                    AnnotateResult(**annotate_result)
+                    if isinstance(annotate_result, dict)
+                    else None
+                )
 
             if annotate_result:
                 annotation = AnnotateEvent(
@@ -478,16 +531,18 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
         # Update client mode
         self._update_client_mode(stage, state, mode)
 
-    async def _broadcast_client_mode_change(self, old_mode: str | None, new_mode: str | None):
+    async def _broadcast_client_mode_change(
+        self, old_mode: str | None, new_mode: str | None
+    ):
         """Broadcast client mode change to websocket clients."""
         try:
             # Use dedicated client mode change broadcast
             await self.websocket_manager.broadcast_client_mode_changed(
-                telescope_id=self.telescope_id,
-                old_mode=old_mode,
-                new_mode=new_mode
+                telescope_id=self.telescope_id, old_mode=old_mode, new_mode=new_mode
             )
-            logging.info(f"Broadcasted client mode change from {old_mode} to {new_mode} via websocket")
+            logging.info(
+                f"Broadcasted client mode change from {old_mode} to {new_mode} via websocket"
+            )
         except Exception as e:
             logging.error(f"Failed to broadcast client mode change via websocket: {e}")
 
@@ -500,7 +555,9 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                 view = response.result["View"]
                 self._process_view(view)
             else:
-                logging.warning(f"No 'View' field in view state response from {self}: {response.result}")
+                logging.warning(
+                    f"No 'View' field in view state response from {self}: {response.result}"
+                )
         else:
             logging.error(f"Error while processing view state from {self}: {response}")
 
@@ -557,6 +614,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
 
         # Start background tasks
         import time
+
         self._last_successful_read = time.time()
         self.background_task = asyncio.create_task(self._heartbeat())
         self.reader_task = asyncio.create_task(self._reader())
@@ -639,7 +697,10 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
         if isinstance(data, BaseModel):
             if data.id is None:
                 data.id = next(self.counter)
-            data = data.model_dump_json(exclude_none=True)  # Not sure if this is safe...
+            data.is_verified = True
+            data = data.model_dump_json(
+                exclude_none=True
+            )  # Not sure if this is safe...
 
         # Log sent message
         self.message_history.append(
@@ -648,6 +709,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
             )
         )
 
+        print("sending ", data)
         await self.connection.write(data)
 
     async def _handle_event(self, event_str: str):
@@ -675,12 +737,14 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
 
                     # Store pi_status for battery temperature and other fields
                     self.status.pi_status = {
-                        'battery_temp': getattr(pi_status, 'battery_temp', None),
-                        'battery_temp_type': getattr(pi_status, 'battery_temp_type', None),
-                        'temp': pi_status.temp,
-                        'charger_status': pi_status.charger_status,
-                        'charge_online': pi_status.charge_online,
-                        'battery_capacity': pi_status.battery_capacity
+                        "battery_temp": getattr(pi_status, "battery_temp", None),
+                        "battery_temp_type": getattr(
+                            pi_status, "battery_temp_type", None
+                        ),
+                        "temp": pi_status.temp,
+                        "charger_status": pi_status.charger_status,
+                        "charge_online": pi_status.charge_online,
+                        "battery_capacity": pi_status.battery_capacity,
                     }
                 case "Stack":
                     logging.trace(f"Updating stacked frame and dropped frame: {parsed}")
@@ -692,9 +756,14 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                 case "Annotate":
                     annotate_event = AnnotateEvent(**parser.event)
                     # Ensure result is an AnnotateResult instance if it exists
-                    if annotate_event.result and not isinstance(annotate_event.result, AnnotateResult):
-                        annotate_event.result = AnnotateResult(**annotate_event.result) if isinstance(
-                            annotate_event.result, dict) else None
+                    if annotate_event.result and not isinstance(
+                        annotate_event.result, AnnotateResult
+                    ):
+                        annotate_event.result = (
+                            AnnotateResult(**annotate_event.result)
+                            if isinstance(annotate_event.result, dict)
+                            else None
+                        )
                     self.status.annotate = annotate_event.result
                     self.event_bus.emit("Annotate", annotate_event)
                 case "FocuserMove":
@@ -759,16 +828,18 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                 if response.result.get("success") is True:
                     return response
                 else:
-                    logging.error(f"Error while processing {data} from {self}: {response}")
+                    logging.error(
+                        f"Error while processing {data} from {self}: {response}"
+                    )
                     return None
 
     async def update_current_coords(self) -> bool:
         """Update telescope position and balance sensor.
 
         Returns True if the position changed, False otherwise."""
-        response: CommandResponse = await self.send_and_recv(GetDeviceState(params={
-            "keys": ["balance_sensor"]
-        }))
+        response: CommandResponse = await self.send_and_recv(
+            GetDeviceState(params={"keys": ["balance_sensor"]})
+        )
         if response is not None:
             dev_balance_sensor = GetDeviceStateResponse(**response.result)
             self.status.balance_sensor = dev_balance_sensor.balance_sensor
@@ -840,18 +911,18 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
 
     # Helper methods
     async def goto(
-            self,
-            target_name: str,
-            in_ra: float,
-            in_dec: float,
-            *,
-            mode: ScopeViewMode = "star",
-            target_type: ScopeTargetType | None = None,
-            lp_filter: bool = False,
+        self,
+        target_name: str,
+        in_ra: float,
+        in_dec: float,
+        *,
+        mode: ScopeViewMode = "star",
+        target_type: ScopeTargetType | None = None,
+        lp_filter: bool = False,
     ):
         """Generalized goto."""
         # For moon and sun modes, don't send coordinates.  Let scope try to find them.
-        if target_type == 'moon' or target_type == 'sun':
+        if target_type == "moon" or target_type == "sun":
             coords = None
         else:
             coords = (in_ra, in_dec)
@@ -880,12 +951,14 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
         """Scope sync."""
         return await self.send_and_recv(ScopeSync(params=(in_ra, in_dec)))
 
-    async def scope_view(self, mode: ScopeViewMode = 'star'):
+    async def scope_view(self, mode: ScopeViewMode = "star"):
         """Set scope view mode."""
-        return await self.send_and_recv(IscopeStartView(params=(IscopeStartViewParams(mode=mode))))
+        return await self.send_and_recv(
+            IscopeStartView(params=(IscopeStartViewParams(mode=mode)))
+        )
 
     async def wait_for_event_completion(
-            self, event_type: str, timeout: float = 60.0
+        self, event_type: str, timeout: float = 60.0
     ) -> tuple[bool, str | None]:
         """
         Wait for an event of the specified type to complete.
@@ -915,7 +988,9 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
 
         async def event_handler(event: BaseEvent):
             """Handle incoming events and check for completion."""
-            logging.debug(f"wait_for_event_completion Received {event_type} event: {event}")
+            logging.debug(
+                f"wait_for_event_completion Received {event_type} event: {event}"
+            )
 
             # Check if event has a state field
             if hasattr(event, "state") and event.state is not None:
@@ -949,7 +1024,9 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                     except Exception:
                         pass
 
-                    logging.info(f"{event_type} failed with state: {state}, error: {error_msg}")
+                    logging.info(
+                        f"{event_type} failed with state: {state}, error: {error_msg}"
+                    )
                     result["success"] = False
                     result["error"] = error_msg
                     completion_event.set()
@@ -972,7 +1049,9 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
             # Clean up the event listener
             self.event_bus.remove_listener(event_type, event_handler)
 
-    async def initialize_telescope(self, lat: float | None = None, lon: float | None = None):
+    async def initialize_telescope(
+        self, lat: float | None = None, lon: float | None = None
+    ):
         """Initialize telescope.
 
         Sends a series of commands to initialize the telescope."""
@@ -984,35 +1063,45 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
         else:
             # Fallback if tzlocal is not available
             import time
+
             tz_name = time.tzname[0]
             tz = None
         now = datetime.now(tz)
 
         await self.send_and_recv(PiIsVerified())
-        await self.send_and_recv(PiSetTime(params=[PiSetTimeParameter(
-            year=now.year,
-            mon=now.month,
-            day=now.day,
-            hour=now.hour,
-            min=now.minute,
-            sec=now.second,
-            time_zone=tz_name
-        )]))
+        await self.send_and_recv(
+            PiSetTime(
+                params=[
+                    PiSetTimeParameter(
+                        year=now.year,
+                        mon=now.month,
+                        day=now.day,
+                        hour=now.hour,
+                        min=now.minute,
+                        sec=now.second,
+                        time_zone=tz_name,
+                    )
+                ]
+            )
+        )
 
         if lat is not None and lon is not None:
-            await self.send_and_recv(SetUserLocation(params=SetUserLocationParameters(
-                lat=lat, lon=lon)))
+            await self.send_and_recv(
+                SetUserLocation(params=SetUserLocationParameters(lat=lat, lon=lon))
+            )
 
         settings = [
             SettingParameters(lang="en"),
             SettingParameters(auto_af=True),  # ??
             SettingParameters(stack_after_goto=False),  # New in firmware 2.1
             SettingParameters(exp_ms={"stack_l": 1, "continuous": 1}),
-            SettingParameters(stack_dither={
-                "enable": True,
-                "pix": 1,
-                "interval": 1,
-            }),
+            SettingParameters(
+                stack_dither={
+                    "enable": True,
+                    "pix": 1,
+                    "interval": 1,
+                }
+            ),
             SettingParameters(stack={"dbe": False}),  # ???
             SettingParameters(frame_calib=False),
         ]
@@ -1029,10 +1118,14 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
         #     }
         # }))
 
-        await self.send_and_recv(SetStackSetting(params=SetStackSettingParameters(
-            save_discrete_ok_frame=True,
-            save_discrete_frame=True,
-        )))
+        await self.send_and_recv(
+            SetStackSetting(
+                params=SetStackSettingParameters(
+                    save_discrete_ok_frame=True,
+                    save_discrete_frame=True,
+                )
+            )
+        )
 
         # await self.send_and_recv(ScopePark(params={"equ_mode": self.is_EQ_mode}))
 
@@ -1048,15 +1141,22 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                     break
 
                 # Check if we should attempt reconnection
-                if not self.connection.is_connected() and self._should_attempt_reconnection():
+                if (
+                    not self.connection.is_connected()
+                    and self._should_attempt_reconnection()
+                ):
                     if not self._reconnect_in_progress:
                         self._reconnect_in_progress = True
-                        logging.info(f"Connection monitor initiating reconnection for {self}")
+                        logging.info(
+                            f"Connection monitor initiating reconnection for {self}"
+                        )
                         try:
                             # Ensure clean state before reconnection
                             # Cancel the reader task if it's still running
                             if self.reader_task and not self.reader_task.done():
-                                logging.debug(f"Canceling reader task before reconnection for {self}")
+                                logging.debug(
+                                    f"Canceling reader task before reconnection for {self}"
+                                )
                                 self.reader_task.cancel()
                                 try:
                                     await self.reader_task
@@ -1070,10 +1170,12 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                             # Restart the reader task after successful reconnection
                             self.reader_task = asyncio.create_task(self._reader())
                             logging.info(
-                                f"Connection monitor successfully reconnected {self} and restarted reader task")
+                                f"Connection monitor successfully reconnected {self} and restarted reader task"
+                            )
                         except Exception as e:
                             logging.debug(
-                                f"Connection monitor failed to reconnect {self.host}:{self.port}: {type(e).__name__}")
+                                f"Connection monitor failed to reconnect {self.host}:{self.port}: {type(e).__name__}"
+                            )
                         finally:
                             self._reconnect_in_progress = False
 
