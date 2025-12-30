@@ -10,6 +10,8 @@ import aiohttp
 
 from scopinator.v2.backends.alpaca.camera import AlpacaCamera
 from scopinator.v2.backends.alpaca.discovery import AlpacaDiscovery
+from scopinator.v2.backends.alpaca.filterwheel import AlpacaFilterWheel
+from scopinator.v2.backends.alpaca.focuser import AlpacaFocuser
 from scopinator.v2.backends.alpaca.mount import AlpacaMount
 from scopinator.v2.backends.base import Backend, BackendInfo
 from scopinator.v2.core.devices import Camera, Focuser, FilterWheel, Mount
@@ -62,6 +64,8 @@ class AlpacaBackend(Backend):
         # Cached device instances
         self._mounts: dict[str, AlpacaMount] = {}
         self._cameras: dict[str, AlpacaCamera] = {}
+        self._focusers: dict[str, AlpacaFocuser] = {}
+        self._filterwheels: dict[str, AlpacaFilterWheel] = {}
 
     @property
     def host(self) -> str:
@@ -126,6 +130,16 @@ class AlpacaBackend(Backend):
                     await camera.disconnect()
                 except Exception:
                     pass
+            for focuser in self._focusers.values():
+                try:
+                    await focuser.disconnect()
+                except Exception:
+                    pass
+            for filterwheel in self._filterwheels.values():
+                try:
+                    await filterwheel.disconnect()
+                except Exception:
+                    pass
 
             if self._session:
                 await self._session.close()
@@ -134,6 +148,8 @@ class AlpacaBackend(Backend):
             self._connected = False
             self._mounts.clear()
             self._cameras.clear()
+            self._focusers.clear()
+            self._filterwheels.clear()
             self._discovered_devices.clear()
 
             # Emit disconnected event
@@ -234,20 +250,68 @@ class AlpacaBackend(Backend):
     async def get_focuser(self, device_id: str) -> Focuser:
         """Get Alpaca focuser.
 
-        Note: Focuser implementation not yet complete.
-        """
-        from scopinator.v2.core.exceptions import NotSupportedError
+        Args:
+            device_id: Device ID (e.g., "focuser_0")
 
-        raise NotSupportedError("Alpaca focuser not yet implemented")
+        Returns:
+            AlpacaFocuser instance
+        """
+        if not self._session:
+            raise DeviceError("Not connected to Alpaca server")
+
+        if device_id in self._focusers:
+            return self._focusers[device_id]
+
+        # Parse device number from ID
+        try:
+            device_num = int(device_id.split("_")[-1])
+        except ValueError:
+            device_num = 0
+
+        focuser = AlpacaFocuser(
+            session=self._session,
+            base_url=self._base_url,
+            device_number=device_num,
+            client_id=self._client_id,
+            get_transaction_id=self._next_transaction_id,
+            event_bus=self._event_bus,
+        )
+
+        self._focusers[device_id] = focuser
+        return focuser
 
     async def get_filterwheel(self, device_id: str) -> FilterWheel:
         """Get Alpaca filter wheel.
 
-        Note: Filter wheel implementation not yet complete.
-        """
-        from scopinator.v2.core.exceptions import NotSupportedError
+        Args:
+            device_id: Device ID (e.g., "filterwheel_0")
 
-        raise NotSupportedError("Alpaca filter wheel not yet implemented")
+        Returns:
+            AlpacaFilterWheel instance
+        """
+        if not self._session:
+            raise DeviceError("Not connected to Alpaca server")
+
+        if device_id in self._filterwheels:
+            return self._filterwheels[device_id]
+
+        # Parse device number from ID
+        try:
+            device_num = int(device_id.split("_")[-1])
+        except ValueError:
+            device_num = 0
+
+        filterwheel = AlpacaFilterWheel(
+            session=self._session,
+            base_url=self._base_url,
+            device_number=device_num,
+            client_id=self._client_id,
+            get_transaction_id=self._next_transaction_id,
+            event_bus=self._event_bus,
+        )
+
+        self._filterwheels[device_id] = filterwheel
+        return filterwheel
 
     def get_info(self) -> BackendInfo:
         """Get backend information."""

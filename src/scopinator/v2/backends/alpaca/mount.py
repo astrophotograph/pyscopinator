@@ -334,6 +334,37 @@ class AlpacaMount(Mount):
             },
         )
 
+    async def move_axis(self, axis: int, rate: float) -> None:
+        """Move an axis at a specified rate.
+
+        Args:
+            axis: 0 for RA/primary axis, 1 for Dec/secondary axis
+            rate: Rate in degrees per second. Positive values move in one
+                  direction, negative in the opposite. 0 stops the axis.
+        """
+        await self._put(
+            "moveaxis",
+            {
+                "Axis": str(axis),
+                "Rate": str(rate),
+            },
+        )
+
+    async def can_move_axis(self, axis: int) -> bool:
+        """Check if the mount supports moving the specified axis.
+
+        Args:
+            axis: 0 for RA/primary axis, 1 for Dec/secondary axis
+
+        Returns:
+            True if the axis can be moved
+        """
+        try:
+            result = await self._get(f"canmoveaxis?Axis={axis}")
+            return result.get("Value", False)
+        except Exception:
+            return False
+
     async def is_slewing(self) -> bool:
         """Check if mount is slewing."""
         result = await self._get("slewing")
