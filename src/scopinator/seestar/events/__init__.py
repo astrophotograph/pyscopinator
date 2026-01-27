@@ -326,6 +326,15 @@ class DiskSpaceEvent(BaseEvent):
     used_percent: int = 0
 
 
+class ClientEvent(BaseEvent):
+    """Client event."""
+
+    Event: Literal["Client"] = "Client"
+    connected: list[str] = []
+    master_index: int | None = None
+    is_master: bool | None = None
+
+
 class Annotation(BaseModel):
     """Annotation."""
 
@@ -373,6 +382,7 @@ class InternalEvent(BaseEvent):
 EventTypes = Annotated[
     AlertEvent
     | AnnotateEvent
+    | ClientEvent
     | AutoFocusEvent
     | AutoGotoEvent
     | AutoGotoStepEvent

@@ -187,6 +187,9 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
     pattern_regex: str = r"OPEN"
     pattern_check_interval: float = 5.0
 
+    # Verify injection configuration (newer firmware requires "verify" param)
+    verify_injection: bool = True
+
     # Timeout configuration
     connection_timeout: float = 10.0
     read_timeout: float = 30.0
@@ -389,8 +392,13 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
             if self.is_connected:
                 await self.refresh_view_state()
                 response = await self.send_and_recv(GetDiskVolume())
-                self.status.freeMB = response.result.get("freeMB")
-                self.status.totalMB = response.result.get("totalMB")
+                if response and isinstance(response.result, dict):
+                    self.status.freeMB = response.result.get("freeMB")
+                    self.status.totalMB = response.result.get("totalMB")
+                else:
+                    logging.warning(
+                        f"Invalid disk volume response from {self}: {response}"
+                    )
 
                 # Refresh device state every 30 seconds
                 import time
@@ -697,10 +705,9 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
         if isinstance(data, BaseModel):
             if data.id is None:
                 data.id = next(self.counter)
-            data.is_verified = True
-            data = data.model_dump_json(
-                exclude_none=True
-            )  # Not sure if this is safe...
+            payload = data.model_dump(mode="json", exclude_none=True)
+            payload = self._transform_message_for_verify(payload)
+            data = json.dumps(payload)
 
         # Log sent message
         self.message_history.append(
@@ -711,6 +718,50 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
 
         print("sending ", data)
         await self.connection.write(data)
+
+    def _get_firmware_ver_int(self) -> int:
+        device_state = self.status.device_state
+        if isinstance(device_state, dict):
+            device = device_state.get("device")
+            if isinstance(device, dict):
+                firmware_ver_int = device.get("firmware_ver_int")
+                if isinstance(firmware_ver_int, int):
+                    return firmware_ver_int
+        return 0
+
+    def _should_inject_verify(self) -> bool:
+        if not self.verify_injection:
+            return False
+        firmware_ver_int = self._get_firmware_ver_int()
+        return firmware_ver_int == 0 or firmware_ver_int > 2582
+
+    def _transform_message_for_verify(self, data: dict[str, Any]) -> dict[str, Any]:
+        if not self._should_inject_verify():
+            return data
+
+        if "params" in data:
+            existing_params = data.get("params")
+
+            if isinstance(existing_params, dict):
+                if "verify" not in existing_params:
+                    existing_params["verify"] = True
+                data["params"] = existing_params
+                return data
+
+            if isinstance(existing_params, list) and existing_params:
+                if existing_params[-1] == "verify":
+                    return data
+
+            if data.get("method") == "set_wheel_position" and isinstance(
+                existing_params, list
+            ):
+                data["params"] = existing_params + ["verify"]
+            else:
+                data["params"] = [existing_params, "verify"]
+        else:
+            data["params"] = ["verify"]
+
+        return data
 
     async def _handle_event(self, event_str: str):
         """Parse an event."""
@@ -766,6 +817,8 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                         )
                     self.status.annotate = annotate_event.result
                     self.event_bus.emit("Annotate", annotate_event)
+                case "Client":
+                    self.event_bus.emit("Client", parser.event)
                 case "FocuserMove":
                     focuser_event = parser.event
                     if focuser_event.position is not None:

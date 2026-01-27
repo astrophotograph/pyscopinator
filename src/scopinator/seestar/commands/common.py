@@ -12,7 +12,6 @@ class BaseCommand(BaseModel):
 
     id: int | None = None
     method: str
-    is_verified: bool | None = None
 
 
 # todo : switch back to Generic[DataT]
