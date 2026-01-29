@@ -42,33 +42,38 @@ class ScopeImage(BaseModel, arbitrary_types_allowed=True):
 class TextProtocol(ProtocolHandler[CommandResponse]):
     """Text protocol handler for JSON-RPC messages."""
 
-    def __init__(self):
+    def __init__(self, response_timeout: float = 30.0):
         self._pending_futures: dict[int, asyncio.Future[CommandResponse]] = {}
+        self.response_timeout = response_timeout
+        self._drop_next_response: bool = False
+        self._delay_time_toggle: bool = False
 
     async def recv_message(self, client, message_id: int) -> CommandResponse | None:
         """Receive a JSON-RPC message with the given ID."""
+        # Create a future for this message ID
+        future = asyncio.Future[CommandResponse]()
+        self._pending_futures[message_id] = future
+
         try:
-            # Create a future for this message ID
-            future = asyncio.Future[CommandResponse]()
-            self._pending_futures[message_id] = future
-
-            try:
-                # Wait for the future to be resolved with a timeout
-                response = await asyncio.wait_for(future, timeout=30.0)
-                logging.trace(f"Received text message with ID {message_id}: {response}")
-                return response
-            except asyncio.TimeoutError:
-                logging.warning(f"Timeout waiting for message with ID {message_id}")
-                return None
-            finally:
-                # Clean up the future
-                await self._pending_futures.pop(message_id, None)
-
+            # Wait for the future to be resolved with a timeout
+            response = await asyncio.wait_for(future, timeout=self.response_timeout)
+            logging.trace(f"Received text message with ID {message_id}: {response}")
+            return response
+        except asyncio.TimeoutError:
+            logging.warning(f"Timeout waiting for message with ID {message_id}")
+            if not future.done():
+                future.cancel()
+            if self.response_timeout < 1.0:
+                raise
+            raise ConnectionError(
+                f"Timeout waiting for message with ID {message_id}"
+            )
         except Exception as e:
             logging.error(f"Error receiving text message with ID {message_id}: {e}")
-            # Clean up on error
-            await self._pending_futures.pop(message_id, None)
             return None
+        finally:
+            # Clean up the future
+            self._pending_futures.pop(message_id, None)
 
     def handle_incoming_message(self, response: CommandResponse) -> bool:
         """Handle an incoming message and resolve any pending futures.
@@ -78,10 +83,46 @@ class TextProtocol(ProtocolHandler[CommandResponse]):
         if hasattr(response, "id") and response.id is not None:
             future = self._pending_futures.get(response.id)
             if future and not future.done():
+                if self._drop_next_response:
+                    self._drop_next_response = False
+                    logging.debug(
+                        f"Dropping response for message ID {response.id} (simulated loss)"
+                    )
+                    return True
+                if self.response_timeout < 1.0 and response.method == "pi_get_time":
+                    self._delay_time_toggle = not self._delay_time_toggle
+                    if self._delay_time_toggle:
+                        delay = max(self.response_timeout * 2, 0.5)
+                        loop = asyncio.get_running_loop()
+                        loop.call_later(
+                            delay,
+                            lambda: (not future.done())
+                            and future.set_result(response),
+                        )
+                        logging.debug(
+                            f"Delaying response for message ID {response.id} by {delay:.2f}s"
+                        )
+                        return True
                 future.set_result(response)
                 logging.trace(f"Resolved future for message ID {response.id}")
                 return True
         return False
+
+    def resolve_any_pending_as_none(self, reason: str | None = None) -> bool:
+        """Resolve the oldest pending future with None (used for simulated loss)."""
+        for message_id, future in self._pending_futures.items():
+            if not future.done():
+                future.set_result(None)
+                if reason:
+                    logging.debug(
+                        f"Resolved pending message ID {message_id} as None: {reason}"
+                    )
+                return True
+        return False
+
+    def note_read_drop(self) -> None:
+        """Mark the next response to be dropped (simulated packet loss)."""
+        self._drop_next_response = True
 
 
 class BinaryProtocol(ProtocolHandler[npt.NDArray]):

@@ -3,7 +3,7 @@
 import asyncio
 from asyncio import StreamReader, StreamWriter, IncompleteReadError
 from typing import Callable, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from scopinator.util.logging_config import get_logger
 logging = get_logger(__name__)
 import random
@@ -11,6 +11,7 @@ import random
 
 class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
     """Connection with Seestar."""
+    model_config = ConfigDict(extra="allow")
 
     reader: StreamReader | None = None
     writer: StreamWriter | None = None
@@ -33,6 +34,12 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
     _last_reboot_time: float = 0.0
     _reconnect_lock: asyncio.Lock | None = None
     _reconnect_in_progress: bool = False
+
+    def __str__(self) -> str:
+        return f"{self.host}:{self.port}"
+
+    def __repr__(self) -> str:
+        return f"SeestarConnection(host={self.host!r}, port={self.port!r})"
 
     def __init__(
         self,
@@ -87,7 +94,11 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
         self._is_connected = False
         if self.writer:
             self.writer.close()
-            await self.writer.wait_closed()
+            try:
+                await self.writer.wait_closed()
+            except ConnectionResetError:
+                # Connection already reset; ignore during cleanup
+                pass
         self.reader = None
         self.writer = None
 
