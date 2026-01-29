@@ -408,9 +408,20 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                         self.status.freeMB = response.result.get("freeMB")
                         self.status.totalMB = response.result.get("totalMB")
                     else:
-                        logging.warning(
-                            f"Invalid disk volume response from {self}: {response}"
-                        )
+                        if response is None:
+                            logging.debug(
+                                f"Disk volume response missing from {self}"
+                            )
+                        elif getattr(response, "code", None) == 255 or getattr(
+                            response, "error", ""
+                        ) == "file not exist":
+                            logging.debug(
+                                f"Disk volume not available from {self}: {response}"
+                            )
+                        else:
+                            logging.warning(
+                                f"Invalid disk volume response from {self}: {response}"
+                            )
                 except (asyncio.TimeoutError, ConnectionError) as e:
                     logging.debug(
                         f"Disk volume refresh failed for {self}: {type(e).__name__}"
@@ -586,11 +597,14 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                 view = response.result["View"]
                 self._process_view(view)
             else:
-                logging.warning(
-                    f"No 'View' field in view state response from {self}: {response.result}"
-                )
+                if response.result == {}:
+                    logging.debug(f"Empty view state response from {self}")
+                else:
+                    logging.warning(
+                        f"No 'View' field in view state response from {self}: {response.result}"
+                    )
         else:
-            logging.error(f"Error while processing view state from {self}: {response}")
+            logging.debug(f"No view state result from {self}: {response}")
 
     def _process_device_state(self, response: CommandResponse | None):
         """Process device state."""
