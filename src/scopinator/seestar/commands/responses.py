@@ -1,7 +1,7 @@
 """Enhanced response models for parsing telescope message data."""
 
-from typing import Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, Field, validator
+from typing import Any, Literal, Optional, Union
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 
 from .common import CommandResponse
@@ -39,7 +39,7 @@ class ParsedCommand(ParsedMessage):
     message_type: Literal["command"] = "command"
     command_id: Optional[int] = None
     method: str
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[dict[str, Any]] = None
 
 
 class ParsedResponse(ParsedMessage):
@@ -50,11 +50,11 @@ class ParsedResponse(ParsedMessage):
     method: str
     jsonrpc: str = "2.0"
     code: int
-    result: Optional[Union[Dict[str, Any], List[Any], int, float, str]] = None
-    error: Optional[Dict[str, Any]] = None
+    result: Optional[Union[dict[str, Any], list[Any], int, float, str]] = None
+    error: Optional[dict[str, Any]] = None
     timestamp_telescope: Optional[str] = None  # Telescope's timestamp
 
-    @validator("timestamp_telescope", pre=True)
+    @field_validator("timestamp_telescope", mode="before")
     def parse_telescope_timestamp(cls, v):
         """Parse telescope timestamp if present."""
         if isinstance(v, str):
@@ -72,7 +72,7 @@ class ParsedEvent(ParsedMessage):
 
     message_type: Literal["event"] = "event"
     event_type: str
-    event_data: Dict[str, Any]
+    event_data: dict[str, Any]
     timestamp_telescope: Optional[str] = None
 
 
@@ -80,7 +80,7 @@ class UnknownMessage(ParsedMessage):
     """Message that couldn't be categorized."""
 
     message_type: Literal["unknown"] = "unknown"
-    attempted_parse_as: List[str] = []
+    attempted_parse_as: list[str] = []
 
 
 # Specific enhanced response models with better typing
@@ -156,7 +156,7 @@ class CameraInfoResponse(EnhancedCommandResponse):
 class CoordinateResponse(EnhancedCommandResponse):
     """Response from coordinate commands (RA/Dec, etc)."""
 
-    def get_coordinates(self) -> Optional[Dict[str, float]]:
+    def get_coordinates(self) -> Optional[dict[str, float]]:
         """Get coordinates as a dictionary."""
         if isinstance(self.result, dict):
             return self.result
@@ -180,7 +180,7 @@ class FocuserPositionResponse(EnhancedCommandResponse):
 class ViewStateResponse(EnhancedCommandResponse):
     """Response from get_view_state command."""
 
-    def get_view_data(self) -> Optional[Dict[str, Any]]:
+    def get_view_data(self) -> Optional[dict[str, Any]]:
         """Get view state data."""
         if isinstance(self.result, dict) and "View" in self.result:
             return self.result["View"]
@@ -229,7 +229,7 @@ class TelescopeMessageParser:
 
     @staticmethod
     def _parse_command(
-        data: Dict[str, Any], raw_message: str, timestamp: str
+        data: dict[str, Any], raw_message: str, timestamp: str
     ) -> ParsedCommand:
         """Parse a command message."""
         return ParsedCommand(
@@ -242,7 +242,7 @@ class TelescopeMessageParser:
 
     @staticmethod
     def _parse_response(
-        data: Dict[str, Any], raw_message: str, timestamp: str
+        data: dict[str, Any], raw_message: str, timestamp: str
     ) -> ParsedResponse:
         """Parse a response message."""
         return ParsedResponse(
@@ -259,7 +259,7 @@ class TelescopeMessageParser:
 
     @staticmethod
     def _parse_event(
-        data: Dict[str, Any], raw_message: str, timestamp: str
+        data: dict[str, Any], raw_message: str, timestamp: str
     ) -> ParsedEvent:
         """Parse an event message."""
         return ParsedEvent(
@@ -272,7 +272,7 @@ class TelescopeMessageParser:
 
     @staticmethod
     def create_enhanced_response(
-        response_data: Dict[str, Any],
+        response_data: dict[str, Any],
     ) -> EnhancedCommandResponse:
         """Create an enhanced command response from raw data."""
         base_response = EnhancedCommandResponse(**response_data)
@@ -308,7 +308,7 @@ class MessageAnalytics:
     """Utilities for analyzing telescope message patterns."""
 
     @staticmethod
-    def analyze_message_history(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def analyze_message_history(messages: list[dict[str, Any]]) -> dict[str, Any]:
         """Analyze a list of telescope messages for patterns and statistics."""
         if not messages:
             return {"error": "No messages to analyze"}

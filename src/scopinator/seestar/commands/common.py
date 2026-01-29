@@ -12,7 +12,6 @@ class BaseCommand(BaseModel):
 
     id: int | None = None
     method: str
-    is_verified: bool | None = None
 
 
 # todo : switch back to Generic[DataT]
@@ -27,5 +26,6 @@ class CommandResponse(BaseModel):
     error: str | None = None
     # Some commands return a JSON object (dict)
     # Others return a simple number (focus position)
-    # Others return a tuple (for example Dec / RA)
-    result: dict | tuple | int | None = None
+    # Others return a tuple/list (for example Dec / RA)
+    # Some return a string (for example test_connection)
+    result: dict | list | tuple | int | float | str | None = None
