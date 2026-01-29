@@ -5,7 +5,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import TypeVar, Literal, Any, Dict
+from typing import TypeVar, Literal, Any
 
 import pydash
 
@@ -180,7 +180,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
     message_history: collections.deque = collections.deque(maxlen=5000)
 
     # Image enhancement settings
-    image_enhancement_settings: Dict[str, Any] = {}
+    image_enhancement_settings: dict[str, Any] = {}
 
     # Pattern monitoring configuration
     pattern_file_path: str = "/mnt/sfro/roof/building-6/RoofStatusFile.txt"
@@ -968,11 +968,11 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                 return True
         return False
 
-    def get_message_history(self) -> list[Dict[str, Any]]:
+    def get_message_history(self) -> list[dict[str, Any]]:
         """Get message history as a list of dictionaries."""
         return [msg.model_dump() for msg in self.message_history]
 
-    def get_parsed_message_history(self) -> list[Dict[str, Any]]:
+    def get_parsed_message_history(self) -> list[dict[str, Any]]:
         """Get message history with parsed message analysis."""
         parsed_messages = []
         for msg in self.message_history:
@@ -983,12 +983,12 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
             parsed_messages.append(msg_dict)
         return parsed_messages
 
-    def get_message_analytics(self) -> Dict[str, Any]:
+    def get_message_analytics(self) -> dict[str, Any]:
         """Get analytics for the message history."""
         messages = self.get_message_history()
         return MessageAnalytics.analyze_message_history(messages)
 
-    def get_recent_commands(self, limit: int = 10) -> list[Dict[str, Any]]:
+    def get_recent_commands(self, limit: int = 10) -> list[dict[str, Any]]:
         """Get recent command messages with parsing."""
         commands = []
         for msg in reversed(self.message_history):
@@ -1004,7 +1004,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                         break
         return list(reversed(commands))
 
-    def get_recent_events(self, limit: int = 10) -> list[Dict[str, Any]]:
+    def get_recent_events(self, limit: int = 10) -> list[dict[str, Any]]:
         """Get recent event messages with parsing."""
         events = []
         for msg in reversed(self.message_history):

@@ -26,6 +26,7 @@ class ScopePark(BaseCommand):
 
 class TestConnection(BaseCommand):
     """Test the connection to the Seestar."""
+    __test__ = False
 
     method: Literal["test_connection"] = "test_connection"
 
