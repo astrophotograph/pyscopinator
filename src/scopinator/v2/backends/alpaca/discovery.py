@@ -6,7 +6,7 @@ This module handles querying that API to find available devices.
 
 import asyncio
 import socket
-from typing import Any, Optional
+from typing import Any
 
 import aiohttp
 
@@ -215,17 +215,21 @@ async def discover_alpaca_devices(
     """
     try:
         async with aiohttp.ClientSession() as session:
-            discovery = AlpacaDiscovery(session, f"http://{host}:{port}", timeout=timeout)
+            discovery = AlpacaDiscovery(
+                session, f"http://{host}:{port}", timeout=timeout
+            )
             devices = await discovery.get_configured_devices()
 
             result = []
             for device_type, device_list in devices.items():
                 for d in device_list:
-                    result.append({
-                        "device_type": device_type,
-                        "device_name": d.get("DeviceName", ""),
-                        "device_number": d.get("DeviceNumber", 0),
-                    })
+                    result.append(
+                        {
+                            "device_type": device_type,
+                            "device_name": d.get("DeviceName", ""),
+                            "device_number": d.get("DeviceNumber", 0),
+                        }
+                    )
             return result
     except Exception:
         return []

@@ -7,7 +7,7 @@ Using CalVer versioning: YYYY.MM.MICRO
 
 This format is SemVer compatible where:
 - YYYY acts as MAJOR version
-- MM acts as MINOR version  
+- MM acts as MINOR version
 - MICRO acts as PATCH version
 """
 

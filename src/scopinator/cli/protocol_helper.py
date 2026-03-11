@@ -4,8 +4,7 @@ Provides unified access to different telescope protocols (Seestar, Alpaca, INDI)
 based on CLI options and profiles.
 """
 
-import asyncio
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import click
 
@@ -154,17 +153,19 @@ class ProtocolClient:
         if self.protocol == "seestar" and self._seestar_client:
             client = self._seestar_client
             if client.status:
-                status.update({
-                    "battery": client.status.battery_capacity,
-                    "temperature": client.status.temp,
-                    "ra": client.status.ra,
-                    "dec": client.status.dec,
-                    "alt": client.status.alt,
-                    "az": client.status.az,
-                    "tracking": client.status.tracking_state,
-                    "target_name": client.status.target_name,
-                    "stacked_frames": client.status.stacked_frame,
-                })
+                status.update(
+                    {
+                        "battery": client.status.battery_capacity,
+                        "temperature": client.status.temp,
+                        "ra": client.status.ra,
+                        "dec": client.status.dec,
+                        "alt": client.status.alt,
+                        "az": client.status.az,
+                        "tracking": client.status.tracking_state,
+                        "target_name": client.status.target_name,
+                        "stacked_frames": client.status.stacked_frame,
+                    }
+                )
 
         elif self.protocol in ("alpaca", "indi"):
             mount = await self.get_mount()
@@ -178,7 +179,9 @@ class ProtocolClient:
 
                 try:
                     state = await mount.get_slew_state()
-                    status["slew_state"] = state.value if hasattr(state, 'value') else str(state)
+                    status["slew_state"] = (
+                        state.value if hasattr(state, "value") else str(state)
+                    )
                 except Exception:
                     pass
 
@@ -196,6 +199,7 @@ class ProtocolClient:
 
         elif self.protocol in ("alpaca", "indi"):
             from scopinator.v2.core.types import Coordinates
+
             mount = await self.get_mount()
             if mount:
                 target = Coordinates(ra=ra, dec=dec)
@@ -234,7 +238,9 @@ class ProtocolClient:
         raise NotImplementedError(f"send_and_recv not supported for {self.protocol}")
 
 
-def get_protocol_and_connection(ctx: click.Context, host: Optional[str], port: Optional[int]) -> tuple[str, str, int]:
+def get_protocol_and_connection(
+    ctx: click.Context, host: Optional[str], port: Optional[int]
+) -> tuple[str, str, int]:
     """Get protocol, host, and port from context and options.
 
     Priority:
@@ -328,5 +334,7 @@ async def create_client(
 def require_host(host: Optional[str], ctx: click.Context) -> None:
     """Check that host is provided, show error if not."""
     if not host:
-        click.echo("❌ No telescope connection. Use 'connect' command first, provide --host, or use --profile")
+        click.echo(
+            "❌ No telescope connection. Use 'connect' command first, provide --host, or use --profile"
+        )
         ctx.exit(1)

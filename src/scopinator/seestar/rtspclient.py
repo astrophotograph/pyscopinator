@@ -3,12 +3,13 @@
 import asyncio
 import os
 from threading import Thread, RLock
-from typing import Any, Optional
+from typing import Optional
 
 import cv2
 import numpy.typing as npt
 from PIL import Image
 from scopinator.util.logging_config import get_logger
+
 logging = get_logger(__name__)
 
 # Suppress FFmpeg/H.264 decoder warnings
@@ -70,7 +71,7 @@ class RtspClient:
             return (
                 (self._stream is not None) and self._stream.isOpened() and self._bg_run
             )
-        except:
+        except Exception:
             self._close()
             return False
 
@@ -92,7 +93,7 @@ class RtspClient:
                 if self._queue is None:
                     return None
                 return cv2.cvtColor(self._queue, cv2.COLOR_BGR2RGB)
-            except:
+            except Exception:
                 return None
 
     async def finish_opening(self):

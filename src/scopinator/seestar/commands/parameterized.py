@@ -16,6 +16,7 @@ class StopStage(str, Enum):
 
 class StartStackParams(BaseModel):
     """Parameters for the StartStack command."""
+
     restart: Optional[bool]
 
 
@@ -28,6 +29,7 @@ class IscopeStartStack(BaseCommand):
 
 ScopeViewMode = Literal["scenery", "solar_sys", "star"]
 ScopeTargetType = Literal["sun", "moon", "planet"]
+
 
 class IscopeStartViewParams(BaseModel):
     """Parameters for the IscopeStartView command."""
@@ -88,24 +90,24 @@ class GotoTargetParameters(BaseModel):
     is_j2000: bool
     ra: float
     dec: float
-    
-    @field_validator('ra')
+
+    @field_validator("ra")
     @classmethod
     def validate_ra(cls, v: float) -> float:
         """Validate Right Ascension is in valid range (0-360 degrees)."""
         if not (0.0 <= v <= 360.0):
             raise ValueError(f"RA must be between 0 and 360 degrees, got {v}")
         return v
-    
-    @field_validator('dec')
+
+    @field_validator("dec")
     @classmethod
     def validate_dec(cls, v: float) -> float:
         """Validate Declination is in valid range (-90 to +90 degrees)."""
         if not (-90.0 <= v <= 90.0):
             raise ValueError(f"Dec must be between -90 and +90 degrees, got {v}")
         return v
-    
-    @field_validator('target_name')
+
+    @field_validator("target_name")
     @classmethod
     def validate_target_name(cls, v: str) -> str:
         """Validate target name is not empty."""

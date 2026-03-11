@@ -5,7 +5,6 @@ for CCD/CMOS camera control.
 """
 
 import asyncio
-import base64
 from typing import Callable, Optional
 
 import aiohttp
@@ -250,16 +249,12 @@ class AlpacaCamera(Camera):
             is_color=False,  # Would need to query sensortype
         )
 
-    async def set_cooler(
-        self, enabled: bool, setpoint: Optional[float] = None
-    ) -> None:
+    async def set_cooler(self, enabled: bool, setpoint: Optional[float] = None) -> None:
         """Control cooler."""
         await self._put("cooleron", {"CoolerOn": str(enabled).lower()})
 
         if setpoint is not None and enabled:
-            await self._put(
-                "setccdtemperature", {"SetCCDTemperature": str(setpoint)}
-            )
+            await self._put("setccdtemperature", {"SetCCDTemperature": str(setpoint)})
 
     async def get_temperature(self) -> Optional[float]:
         """Get current sensor temperature."""

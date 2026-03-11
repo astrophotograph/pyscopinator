@@ -70,7 +70,9 @@ class PiStatusEvent(BaseEvent):
 
     Event: Literal["PiStatus"] = "PiStatus"
     temp: float | None = None
-    charger_status: Literal["Discharging", "Charging", "Full", "Not charging"] | None = None
+    charger_status: (
+        Literal["Discharging", "Charging", "Full", "Not charging"] | None
+    ) = None
     charge_online: bool | None = None
     battery_capacity: int | None = None
 
@@ -88,6 +90,7 @@ class RTSPEvent(BaseEvent):
 
 class ScanSunEvent(BaseEvent):
     """Scan sun event."""
+
     Event: Literal["ScanSun"] = "ScanSun"
     state: EventState = None
     lapse_ms: int = 0

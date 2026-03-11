@@ -32,7 +32,9 @@ class BaseComponent(BaseModel, ABC):
     """
 
     name: str = Field(..., description="User-friendly name for this component")
-    device_type: str = Field(..., description="Type identifier (e.g., 'seestar', 'asi294')")
+    device_type: str = Field(
+        ..., description="Type identifier (e.g., 'seestar', 'asi294')"
+    )
     manufacturer: Optional[str] = Field(None, description="Device manufacturer")
     model: Optional[str] = Field(None, description="Device model")
 

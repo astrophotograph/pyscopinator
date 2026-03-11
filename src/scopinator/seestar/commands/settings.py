@@ -7,6 +7,7 @@ from scopinator.seestar.commands.common import BaseCommand
 
 class PiSetTimeParameter(BaseModel):
     """Parameters for the PiSetTime command."""
+
     year: int
     mon: int
     day: int
@@ -22,8 +23,10 @@ class PiSetTime(BaseCommand):
     method: Literal["pi_set_time"] = "pi_set_time"
     params: list[PiSetTimeParameter]
 
+
 class PiOutputSet2(BaseCommand):
     """Set the output 2 on the Seestar."""
+
     method: Literal["pi_output_set2"] = "pi_output_set2"
     params: dict[str, Any]
 
@@ -37,9 +40,11 @@ class SetControlValue(BaseCommand):
 
 class SetUserLocationParameters(BaseModel):
     """Parameters for the SetUserLocation command."""
+
     lat: float
     lon: float
     force: bool = True
+
 
 class SetUserLocation(BaseCommand):
     """Set the user location on the Seestar."""
@@ -51,9 +56,11 @@ class SetUserLocation(BaseCommand):
 class SettingParameters(BaseModel):
     """Parameters for the SetSetting command."""
 
-    exp_ms: Optional[dict[str, int]] = None # values: stack_l, continuous
+    exp_ms: Optional[dict[str, int]] = None  # values: stack_l, continuous
     ae_bri_percent: Optional[int] = None
-    stack_dither: Optional[dict[str, Any]] = None  # pix: int, interval: int, enable: bool
+    stack_dither: Optional[dict[str, Any]] = (
+        None  # pix: int, interval: int, enable: bool
+    )
     save_discrete_frame: Optional[bool] = None
     save_discrete_ok_frame: Optional[bool] = None
     auto_3ppa_calib: Optional[bool] = None
@@ -75,23 +82,29 @@ class SetSetting(BaseCommand):
     method: Literal["set_setting"] = "set_setting"
     params: SettingParameters | None = None
 
+
 class SequenceSettingParameters(BaseModel):
     """Parameters for the SetSequenceSetting command."""
+
     group_name: Optional[str]
+
 
 class SetSequenceSetting(BaseCommand):
     """Set the sequence setting from the Seestar."""
+
     method: Literal["set_sequence_setting"] = "set_sequence_setting"
     params: list[SequenceSettingParameters]
 
 
 class SetStackSettingParameters(BaseModel):
     """Parameters for the SetStackSetting command."""
+
     save_discrete_ok_frame: Optional[bool]
     save_discrete_frame: Optional[bool]
 
+
 class SetStackSetting(BaseCommand):
     """Set the stack setting from the Seestar."""
+
     method: Literal["set_stack_setting"] = "set_stack_setting"
     params: SetStackSettingParameters
-

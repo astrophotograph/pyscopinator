@@ -46,7 +46,9 @@ class NotSupportedError(V2Error):
 class CommandError(V2Error):
     """Command execution failed."""
 
-    def __init__(self, message: str, code: int | None = None, details: dict | None = None):
+    def __init__(
+        self, message: str, code: int | None = None, details: dict | None = None
+    ):
         super().__init__(message)
         self.code = code
         self.details = details or {}

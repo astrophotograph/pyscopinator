@@ -24,7 +24,9 @@ class Coordinates(BaseModel):
         return self.ra / 15.0
 
     @classmethod
-    def from_hours(cls, ra_hours: float, dec: float, epoch: str = "J2000") -> "Coordinates":
+    def from_hours(
+        cls, ra_hours: float, dec: float, epoch: str = "J2000"
+    ) -> "Coordinates":
         """Create coordinates from RA in hours."""
         return cls(ra=ra_hours * 15.0, dec=dec, epoch=epoch)
 
@@ -36,7 +38,9 @@ class AltAzCoordinates(BaseModel):
     """Horizontal (altitude-azimuth) coordinates."""
 
     altitude: float = Field(..., ge=-90, le=90, description="Altitude in degrees")
-    azimuth: float = Field(..., ge=0, lt=360, description="Azimuth in degrees (N=0, E=90)")
+    azimuth: float = Field(
+        ..., ge=0, lt=360, description="Azimuth in degrees (N=0, E=90)"
+    )
 
     def __str__(self) -> str:
         return f"Alt: {self.altitude:.2f}°, Az: {self.azimuth:.2f}°"
@@ -86,7 +90,9 @@ class CameraState(str, Enum):
 class ExposureSettings(BaseModel):
     """Camera exposure settings."""
 
-    duration_seconds: float = Field(..., gt=0, description="Exposure duration in seconds")
+    duration_seconds: float = Field(
+        ..., gt=0, description="Exposure duration in seconds"
+    )
     gain: Optional[int] = Field(None, ge=0, description="Camera gain")
     offset: Optional[int] = Field(None, ge=0, description="Camera offset/brightness")
     bin_x: int = Field(default=1, ge=1, description="Horizontal binning")
@@ -94,7 +100,9 @@ class ExposureSettings(BaseModel):
     subframe: Optional[tuple[int, int, int, int]] = Field(
         None, description="Subframe region (x, y, width, height)"
     )
-    light: bool = Field(default=True, description="True for light frame, False for dark")
+    light: bool = Field(
+        default=True, description="True for light frame, False for dark"
+    )
 
     model_config = {"frozen": False}
 
@@ -107,8 +115,12 @@ class ImageData(BaseModel):
     data: bytes = Field(..., description="Raw image bytes")
     bit_depth: int = Field(default=16, description="Bits per pixel")
     is_color: bool = Field(default=False, description="True if color (RGB/Bayer)")
-    bayer_pattern: Optional[str] = Field(None, description="Bayer pattern if applicable")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    bayer_pattern: Optional[str] = Field(
+        None, description="Bayer pattern if applicable"
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional metadata"
+    )
 
     # numpy array is stored separately (not serialized)
     _array: Optional[npt.NDArray[Any]] = None
@@ -138,7 +150,9 @@ class FocuserPosition(BaseModel):
 
     position: int = Field(..., ge=0, description="Current position in steps")
     max_position: int = Field(..., ge=1, description="Maximum position in steps")
-    temperature: Optional[float] = Field(None, description="Focuser temperature in Celsius")
+    temperature: Optional[float] = Field(
+        None, description="Focuser temperature in Celsius"
+    )
     is_moving: bool = Field(default=False, description="True if currently moving")
 
     @property

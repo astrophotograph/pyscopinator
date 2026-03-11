@@ -40,12 +40,22 @@ class Sequence(BaseModel):
 
     name: str = Field(..., description="Name of the sequence")
     description: Optional[str] = Field(None, description="Description of the sequence")
-    commands: list[Command] = Field(default_factory=list, description="List of commands to execute")
-    state: SequenceState = Field(default=SequenceState.IDLE, description="Current sequence state")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="When sequence was created")
+    commands: list[Command] = Field(
+        default_factory=list, description="List of commands to execute"
+    )
+    state: SequenceState = Field(
+        default=SequenceState.IDLE, description="Current sequence state"
+    )
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow, description="When sequence was created"
+    )
     started_at: Optional[datetime] = Field(None, description="When sequence started")
-    completed_at: Optional[datetime] = Field(None, description="When sequence completed")
-    current_command_index: int = Field(0, description="Index of currently executing command")
+    completed_at: Optional[datetime] = Field(
+        None, description="When sequence completed"
+    )
+    current_command_index: int = Field(
+        0, description="Index of currently executing command"
+    )
     _execution_task: Optional[asyncio.Task] = None
 
     class Config:
@@ -196,7 +206,9 @@ class Sequence(BaseModel):
         return json_str
 
     @classmethod
-    def from_json(cls, json_str: Optional[str] = None, file_path: Optional[str] = None) -> "Sequence":
+    def from_json(
+        cls, json_str: Optional[str] = None, file_path: Optional[str] = None
+    ) -> "Sequence":
         """Deserialize sequence from JSON.
 
         Args:
@@ -219,7 +231,7 @@ class Sequence(BaseModel):
         # Reconstruct command objects from discriminated union
         commands = []
         for cmd_data in data.get("commands", []):
-            cmd_type = cmd_data.get("name")  # Use name field to determine type
+            cmd_data.get("name")  # Use name field to determine type
             # You could also add a 'type' field for more explicit typing
 
             # Map command data to appropriate class
@@ -277,7 +289,9 @@ def _deserialize_command(cmd_data: dict[str, Any]) -> Command:
 
     # Handle nested commands for SequenceCommand
     if cmd_type == "SequenceCommand":
-        nested_commands = [_deserialize_command(c) for c in cmd_data.get("commands", [])]
+        nested_commands = [
+            _deserialize_command(c) for c in cmd_data.get("commands", [])
+        ]
         cmd_data["commands"] = nested_commands
 
     return command_class(**cmd_data)

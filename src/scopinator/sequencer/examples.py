@@ -108,8 +108,11 @@ def create_multi_target_sequence() -> Sequence:
     Returns:
         Sequence: A configured multi-target sequence
     """
+
     # Helper function to create a target imaging sub-sequence
-    def create_target_sequence(name: str, ra: float, dec: float, duration_minutes: float) -> SequenceCommand:
+    def create_target_sequence(
+        name: str, ra: float, dec: float, duration_minutes: float
+    ) -> SequenceCommand:
         return SequenceCommand(
             name=f"Image {name}",
             description=f"Complete imaging sequence for {name}",

@@ -5,8 +5,6 @@ V2 event system, allowing V2 consumers to receive events in a
 protocol-agnostic format.
 """
 
-from typing import Any
-
 from scopinator.seestar.events import (
     AutoGotoEvent,
     ContinuousExposureEvent,
@@ -14,7 +12,6 @@ from scopinator.seestar.events import (
     PiStatusEvent,
     StackEvent,
     ScopeGotoEvent,
-    BaseEvent,
 )
 from scopinator.util.eventbus import EventBus as SeestarEventBus
 from scopinator.v2.core.events import (
@@ -60,7 +57,9 @@ class SeestarEventTranslator:
         self._seestar_bus.add_listener("AutoGoto", self._handle_autogoto)
         self._seestar_bus.add_listener("ScopeGoto", self._handle_scope_goto)
         self._seestar_bus.add_listener("Stack", self._handle_stack)
-        self._seestar_bus.add_listener("ContinuousExposure", self._handle_continuous_exposure)
+        self._seestar_bus.add_listener(
+            "ContinuousExposure", self._handle_continuous_exposure
+        )
         self._seestar_bus.add_listener("FocuserMove", self._handle_focuser)
         self._seestar_bus.add_listener("PiStatus", self._handle_status)
 

@@ -1,7 +1,7 @@
 """Sequencer command implementations."""
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Optional
 
 from astropy.coordinates import EarthLocation
@@ -14,7 +14,9 @@ from scopinator.sequencer.events import AstronomicalEvent, calculate_event_time
 class WaitMinutesCommand(Command):
     """Wait for a specified number of minutes."""
 
-    command_type: str = Field(default="WaitMinutesCommand", description="Command type identifier")
+    command_type: str = Field(
+        default="WaitMinutesCommand", description="Command type identifier"
+    )
     minutes: float = Field(..., description="Number of minutes to wait", gt=0)
     _task: Optional[asyncio.Task] = None
 
@@ -50,7 +52,9 @@ class WaitMinutesCommand(Command):
 class WaitUntilTimeCommand(Command):
     """Wait until a specific date/time."""
 
-    command_type: str = Field(default="WaitUntilTimeCommand", description="Command type identifier")
+    command_type: str = Field(
+        default="WaitUntilTimeCommand", description="Command type identifier"
+    )
     target_time: datetime = Field(..., description="Target date/time to wait until")
 
     async def execute(self, context: dict[str, Any]) -> None:
@@ -77,7 +81,9 @@ class WaitUntilTimeCommand(Command):
 class WaitUntilEventCommand(Command):
     """Wait until an astronomical event occurs."""
 
-    command_type: str = Field(default="WaitUntilEventCommand", description="Command type identifier")
+    command_type: str = Field(
+        default="WaitUntilEventCommand", description="Command type identifier"
+    )
     event: AstronomicalEvent = Field(..., description="Astronomical event to wait for")
     latitude: float = Field(..., description="Observer latitude in degrees")
     longitude: float = Field(..., description="Observer longitude in degrees")
@@ -116,7 +122,9 @@ class WaitUntilEventCommand(Command):
 class GoToTargetCommand(Command):
     """Slew telescope to a target."""
 
-    command_type: str = Field(default="GoToTargetCommand", description="Command type identifier")
+    command_type: str = Field(
+        default="GoToTargetCommand", description="Command type identifier"
+    )
     ra: float = Field(..., description="Right Ascension in degrees")
     dec: float = Field(..., description="Declination in degrees")
     target_name: Optional[str] = Field(None, description="Optional target name")
@@ -134,9 +142,13 @@ class GoToTargetCommand(Command):
                 raise ValueError("No telescope client in context")
 
             # Use the Seestar client to slew to target
-            from scopinator.seestar.commands.parameterized import GotoTargetCommand as GotoCmd
+            from scopinator.seestar.commands.parameterized import (
+                GotoTargetCommand as GotoCmd,
+            )
 
-            goto_cmd = GotoCmd(ra=self.ra, dec=self.dec, target_name=self.target_name or "Target")
+            goto_cmd = GotoCmd(
+                ra=self.ra, dec=self.dec, target_name=self.target_name or "Target"
+            )
             await client.execute_command(goto_cmd)
 
             self.mark_completed()
@@ -148,10 +160,14 @@ class GoToTargetCommand(Command):
 class StartImagingCommand(Command):
     """Start imaging session."""
 
-    command_type: str = Field(default="StartImagingCommand", description="Command type identifier")
+    command_type: str = Field(
+        default="StartImagingCommand", description="Command type identifier"
+    )
     exposure_time: float = Field(..., description="Exposure time in seconds", gt=0)
     gain: int = Field(80, description="Camera gain", ge=0, le=200)
-    count: Optional[int] = Field(None, description="Number of exposures (None = unlimited)")
+    count: Optional[int] = Field(
+        None, description="Number of exposures (None = unlimited)"
+    )
 
     async def execute(self, context: dict[str, Any]) -> None:
         """Start imaging.
@@ -183,7 +199,9 @@ class StartImagingCommand(Command):
 class StopImagingCommand(Command):
     """Stop imaging session."""
 
-    command_type: str = Field(default="StopImagingCommand", description="Command type identifier")
+    command_type: str = Field(
+        default="StopImagingCommand", description="Command type identifier"
+    )
 
     async def execute(self, context: dict[str, Any]) -> None:
         """Stop imaging.
@@ -213,8 +231,12 @@ class SequenceCommand(Command):
     be a sequence of steps.
     """
 
-    command_type: str = Field(default="SequenceCommand", description="Command type identifier")
-    commands: list[Command] = Field(default_factory=list, description="List of commands to execute")
+    command_type: str = Field(
+        default="SequenceCommand", description="Command type identifier"
+    )
+    commands: list[Command] = Field(
+        default_factory=list, description="List of commands to execute"
+    )
     stop_on_error: bool = Field(True, description="Stop sequence if a command fails")
 
     async def execute(self, context: dict[str, Any]) -> None:

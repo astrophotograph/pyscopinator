@@ -110,7 +110,9 @@ class MountStatus(DeviceStatus):
     at_park: bool = Field(default=False, description="Is parked")
     at_home: bool = Field(default=False, description="Is at home position")
     slewing: bool = Field(default=False, description="Is slewing")
-    target_coordinates: Optional[Coordinates] = Field(None, description="Target coordinates")
+    target_coordinates: Optional[Coordinates] = Field(
+        None, description="Target coordinates"
+    )
 
 
 class Mount(Device):
@@ -330,8 +332,12 @@ class CameraStatus(DeviceStatus):
     cooler_power: Optional[float] = Field(None, description="Cooler power percentage")
     gain: Optional[int] = Field(None, description="Current gain setting")
     offset: Optional[int] = Field(None, description="Current offset setting")
-    binning: tuple[int, int] = Field(default=(1, 1), description="Current binning (x, y)")
-    last_exposure_duration: Optional[float] = Field(None, description="Last exposure duration")
+    binning: tuple[int, int] = Field(
+        default=(1, 1), description="Current binning (x, y)"
+    )
+    last_exposure_duration: Optional[float] = Field(
+        None, description="Last exposure duration"
+    )
 
 
 class Camera(Device):
@@ -426,12 +432,11 @@ class Camera(Device):
             await self.start_exposure(settings)
             while await self.is_exposing():
                 import asyncio
+
                 await asyncio.sleep(0.1)
             yield await self.get_image()
 
-    async def set_cooler(
-        self, enabled: bool, setpoint: Optional[float] = None
-    ) -> None:
+    async def set_cooler(self, enabled: bool, setpoint: Optional[float] = None) -> None:
         """Control cooler.
 
         Override if supported by the backend.
@@ -501,7 +506,9 @@ class FocuserStatus(DeviceStatus):
     max_position: int = Field(default=0, description="Maximum position")
     is_moving: bool = Field(default=False, description="Is currently moving")
     temperature: Optional[float] = Field(None, description="Temperature in Celsius")
-    temp_comp_enabled: bool = Field(default=False, description="Temp compensation enabled")
+    temp_comp_enabled: bool = Field(
+        default=False, description="Temp compensation enabled"
+    )
 
 
 class Focuser(Device):

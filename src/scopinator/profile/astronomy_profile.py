@@ -6,14 +6,12 @@ and imaging.
 """
 
 import json
-from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional, Union
 
 from pydantic import BaseModel, Field
 
-from scopinator.profile.components.base import BaseComponent, ComponentState
 
 try:
     import yaml
@@ -53,9 +51,7 @@ class IntegratedDevice(BaseModel):
     imaging_port: Optional[int] = Field(None)
 
     # What this device provides
-    provides: list[str] = Field(
-        default_factory=lambda: ["mount", "camera", "optics"]
-    )
+    provides: list[str] = Field(default_factory=lambda: ["mount", "camera", "optics"])
 
     model_config = {"extra": "allow"}
 
@@ -139,14 +135,16 @@ class AstronomyProfile(BaseModel):
         try:
             seestars = await discover_seestars(timeout=timeout)
             for device in seestars:
-                discovered.append({
-                    "type": "seestar",
-                    "manufacturer": "ZWO",
-                    "model": "Seestar S50",
-                    "host": device["address"],
-                    "port": 4700,
-                    "data": device.get("data", {}),
-                })
+                discovered.append(
+                    {
+                        "type": "seestar",
+                        "manufacturer": "ZWO",
+                        "model": "Seestar S50",
+                        "host": device["address"],
+                        "port": 4700,
+                        "data": device.get("data", {}),
+                    }
+                )
         except Exception:
             pass  # Discovery failed, continue
 
@@ -223,7 +221,7 @@ class AstronomyProfile(BaseModel):
             self.state = ProfileState.CONNECTED
             return True
 
-        except Exception as e:
+        except Exception:
             self.state = ProfileState.ERROR
             return False
 

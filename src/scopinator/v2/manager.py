@@ -110,9 +110,15 @@ class DeviceManager:
 
             # Remove cached devices from this backend
             prefix = f"{name}:"
-            self._mounts = {k: v for k, v in self._mounts.items() if not k.startswith(prefix)}
-            self._cameras = {k: v for k, v in self._cameras.items() if not k.startswith(prefix)}
-            self._focusers = {k: v for k, v in self._focusers.items() if not k.startswith(prefix)}
+            self._mounts = {
+                k: v for k, v in self._mounts.items() if not k.startswith(prefix)
+            }
+            self._cameras = {
+                k: v for k, v in self._cameras.items() if not k.startswith(prefix)
+            }
+            self._focusers = {
+                k: v for k, v in self._focusers.items() if not k.startswith(prefix)
+            }
             self._filterwheels = {
                 k: v for k, v in self._filterwheels.items() if not k.startswith(prefix)
             }

@@ -1,22 +1,22 @@
 """Protocol handlers for Seestar communication."""
 
 import asyncio
-import json
 import zipfile
 from abc import ABC, abstractmethod
 from io import BytesIO
 from struct import calcsize, unpack
-from typing import TypeVar, Generic, Optional, Any, Union
+from typing import TypeVar, Generic, Optional, Any
 
 import numpy as np
 import numpy.typing as npt
 
 import cv2
-from scopinator.util.logging_config import get_logger
-logging = get_logger(__name__)
 from pydantic import BaseModel
 
 from scopinator.seestar.commands.common import CommandResponse
+from scopinator.util.logging_config import get_logger
+
+logging = get_logger(__name__)
 
 U = TypeVar("U")
 
@@ -65,9 +65,7 @@ class TextProtocol(ProtocolHandler[CommandResponse]):
                 future.cancel()
             if self.response_timeout < 1.0:
                 raise
-            raise ConnectionError(
-                f"Timeout waiting for message with ID {message_id}"
-            )
+            raise ConnectionError(f"Timeout waiting for message with ID {message_id}")
         except Exception as e:
             logging.error(f"Error receiving text message with ID {message_id}: {e}")
             return None
@@ -96,8 +94,7 @@ class TextProtocol(ProtocolHandler[CommandResponse]):
                         loop = asyncio.get_running_loop()
                         loop.call_later(
                             delay,
-                            lambda: (not future.done())
-                            and future.set_result(response),
+                            lambda: (not future.done()) and future.set_result(response),
                         )
                         logging.debug(
                             f"Delaying response for message ID {response.id} by {delay:.2f}s"

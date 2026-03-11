@@ -5,7 +5,7 @@ device drivers and clients connect to it to control devices.
 """
 
 import asyncio
-from typing import Any, Optional
+from typing import Optional
 
 from scopinator.v2.backends.base import Backend, BackendInfo
 from scopinator.v2.core.devices import Camera, Focuser, FilterWheel, Mount

@@ -65,12 +65,16 @@ class INDICamera(Camera):
             raise NotConnectedError(f"Device {self._device_name} not found")
         return self._device
 
-    def _get_number(self, property_name: str) -> Optional["PyIndi.INumberVectorProperty"]:
+    def _get_number(
+        self, property_name: str
+    ) -> Optional["PyIndi.INumberVectorProperty"]:
         """Get a number property."""
         device = self._get_device()
         return device.getNumber(property_name)
 
-    def _get_switch(self, property_name: str) -> Optional["PyIndi.ISwitchVectorProperty"]:
+    def _get_switch(
+        self, property_name: str
+    ) -> Optional["PyIndi.ISwitchVectorProperty"]:
         """Get a switch property."""
         device = self._get_device()
         return device.getSwitch(property_name)
@@ -206,9 +210,7 @@ class INDICamera(Camera):
             is_color=False,
         )
 
-    async def set_cooler(
-        self, enabled: bool, setpoint: Optional[float] = None
-    ) -> None:
+    async def set_cooler(self, enabled: bool, setpoint: Optional[float] = None) -> None:
         """Control cooler."""
         cooler = self._get_switch("CCD_COOLER")
         if cooler:

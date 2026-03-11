@@ -3,7 +3,6 @@
 import asyncio
 
 from pydantic import BaseModel
-from typing import Any, Awaitable, Callable, Coroutine, Optional
 
 
 class ResettableDelay(BaseModel):

@@ -43,14 +43,15 @@ def calculate_event_time(
     if date is None:
         date = datetime.utcnow()
 
-    time = Time(date)
+    Time(date)
 
     # Define altitude thresholds for different events
     event_altitudes = {
         AstronomicalEvent.ASTRONOMICAL_DAWN: -18 * u.deg,
         AstronomicalEvent.NAUTICAL_DAWN: -12 * u.deg,
         AstronomicalEvent.CIVIL_DAWN: -6 * u.deg,
-        AstronomicalEvent.SUNRISE: -0.833 * u.deg,  # Account for refraction and sun's radius
+        AstronomicalEvent.SUNRISE: -0.833
+        * u.deg,  # Account for refraction and sun's radius
         AstronomicalEvent.SUNSET: -0.833 * u.deg,
         AstronomicalEvent.CIVIL_DUSK: -6 * u.deg,
         AstronomicalEvent.NAUTICAL_DUSK: -12 * u.deg,
