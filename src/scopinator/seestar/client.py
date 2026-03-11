@@ -882,7 +882,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                     if wheel_event.state == "complete":
                         self.status.lp_filter = wheel_event.position == 2
                 case "View":
-                    self._process_view(parser.event.dict())
+                    self._process_view(parser.event.model_dump())
                 case "ScopeGoto":
                     if parser.event.cur_ra_dec is not None:
                         self.status.ra = parser.event.cur_ra_dec.ra
