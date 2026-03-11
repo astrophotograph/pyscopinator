@@ -60,3 +60,19 @@ markers = [
 testpaths = ["tests"]
 # By default, exclude hardware tests
 addopts = "-m 'not hardware'"
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["src/scopinator"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "pass",
+    "\\.\\.\\.",
+]
+show_missing = true

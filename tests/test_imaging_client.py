@@ -13,8 +13,9 @@ from scopinator.seestar.imaging_client import (
     SeestarImagingStatus,
     ParsedEvent,
 )
+from scopinator.seestar.connection import SeestarConnection
 from scopinator.seestar.protocol_handlers import BinaryProtocol, ScopeImage
-from scopinator.seestar.events import InternalEvent, BaseEvent, AnnotateResult
+from scopinator.seestar.events import InternalEvent, BaseEvent, AnnotateResult, StackEvent
 from scopinator.seestar.commands.imaging import BeginStreaming, StopStreaming, GetStackedImage
 from scopinator.seestar.commands.simple import TestConnection
 from scopinator.util.eventbus import EventBus
@@ -131,31 +132,27 @@ class TestSeestarImagingClient:
         # First connect
         await client.connect()
         client.status.is_streaming = True
-        
-        # Mock stop_streaming
-        client.stop_streaming = AsyncMock()
-        
-        await client.disconnect()
-        
-        assert client.is_connected is False
-        client.stop_streaming.assert_called_once()
-        mock_connection.close.assert_called_once()
-        assert client.background_task is None
-        assert client.reader_task is None
+
+        with patch.object(SeestarImagingClient, "stop_streaming", new=AsyncMock()) as mock_stop:
+            await client.disconnect()
+
+            assert client.is_connected is False
+            mock_stop.assert_called_once()
+            mock_connection.close.assert_called_once()
+            assert client.background_task is None
+            assert client.reader_task is None
             
     @pytest.mark.asyncio
     async def test_context_manager(self, event_bus, mock_connection):
         """Test async context manager support."""
-        async with SeestarImagingClient(
-            host="192.168.1.100",
-            port=5556,
-            event_bus=event_bus,
-        ) as client:
-            # Replace connection with mock after creation
-            client.connection = mock_connection
-            await client.connect()
-            assert client.is_connected is True
-        
+        with patch.object(SeestarConnection, "open", new=AsyncMock()):
+            async with SeestarImagingClient(
+                host="192.168.1.100",
+                port=5556,
+                event_bus=event_bus,
+            ) as client:
+                assert client.is_connected is True
+
         # After context exit, should be disconnected
         assert client.is_connected is False
     
@@ -215,31 +212,29 @@ class TestSeestarImagingClient:
         """Test handling stack event with frame_complete state."""
         client.status.is_fetching_images = True
         client.status.is_receiving_image = False
-        
-        event = MagicMock()
-        event.state = "frame_complete"
-        
-        with patch.object(client, 'send', new_callable=AsyncMock) as mock_send:
+
+        event = StackEvent(Timestamp=datetime.now().isoformat(), state="frame_complete")
+
+        with patch.object(SeestarImagingClient, 'send', new=AsyncMock()) as mock_send:
             await client._handle_stack_event(event)
-            
+
             # Should send GetStackedImage command
             mock_send.assert_called_once()
             call_args = mock_send.call_args[0][0]
             assert isinstance(call_args, GetStackedImage)
-            
+
     @pytest.mark.asyncio
     async def test_handle_stack_event_skip_when_receiving(self, client):
         """Test skipping frame request when already receiving image."""
         client.status.is_fetching_images = True
         client.status.is_receiving_image = True
         client.status.skipped_frame = 0
-        
-        event = MagicMock()
-        event.state = "frame_complete"
-        
-        with patch.object(client, 'send', new_callable=AsyncMock) as mock_send:
+
+        event = StackEvent(Timestamp=datetime.now().isoformat(), state="frame_complete")
+
+        with patch.object(SeestarImagingClient, 'send', new=AsyncMock()) as mock_send:
             await client._handle_stack_event(event)
-            
+
             # Should not send command when already receiving
             mock_send.assert_not_called()
             assert client.status.skipped_frame == 1
@@ -251,10 +246,10 @@ class TestSeestarImagingClient:
             Timestamp=datetime.now().isoformat(),
             params={"existing": "Idle", "new_mode": "ContinuousExposure"}
         )
-        
-        with patch.object(client, 'start_streaming', new_callable=AsyncMock) as mock_start:
+
+        with patch.object(SeestarImagingClient, 'start_streaming', new=AsyncMock()) as mock_start:
             await client._handle_client_mode(event)
-            
+
             mock_start.assert_called_once()
             assert client.client_mode == "ContinuousExposure"
             
@@ -262,15 +257,15 @@ class TestSeestarImagingClient:
     async def test_handle_client_mode_stop_streaming(self, client):
         """Test stopping streaming on mode change."""
         client.client_mode = "ContinuousExposure"
-        
+
         event = InternalEvent(
             Timestamp=datetime.now().isoformat(),
             params={"existing": "ContinuousExposure", "new_mode": "Idle"}
         )
-        
-        with patch.object(client, 'stop_streaming', new_callable=AsyncMock) as mock_stop:
+
+        with patch.object(SeestarImagingClient, 'stop_streaming', new=AsyncMock()) as mock_stop:
             await client._handle_client_mode(event)
-            
+
             mock_stop.assert_called_once()
             assert client.client_mode == "Idle"
             
@@ -354,20 +349,22 @@ class TestSeestarImagingClient:
             
     @pytest.mark.asyncio
     async def test_connection_monitor(self, client, mock_connection):
-        """Test connection monitor task."""
+        """Test connection monitor task checks reconnection when disconnected."""
         client.is_connected = True
-        client._connection_check_interval = 0.1  # Speed up for testing
-        
-        # Mock should_attempt_reconnection
-        with patch.object(client, '_should_attempt_reconnection') as mock_should:
-            mock_should.return_value = False
-            
+        client._connection_check_interval = 0.05  # Speed up for testing
+
+        # is_connected must be a sync callable returning False to trigger reconnect check
+        mock_connection.is_connected = MagicMock(return_value=False)
+
+        with patch.object(SeestarImagingClient, '_should_attempt_reconnection') as mock_should:
+            mock_should.return_value = False  # Don't actually reconnect
+
             # Run monitor briefly
             monitor_task = asyncio.create_task(client._connection_monitor())
-            
-            # Wait briefly
-            await asyncio.sleep(0.2)
-            
+
+            # Wait for at least one check cycle
+            await asyncio.sleep(0.15)
+
             # Stop monitor
             client.is_connected = False
             monitor_task.cancel()
@@ -375,7 +372,7 @@ class TestSeestarImagingClient:
                 await monitor_task
             except asyncio.CancelledError:
                 pass
-                
+
             # Verify it checked reconnection
             assert mock_should.called
             

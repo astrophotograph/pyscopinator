@@ -45,23 +45,24 @@ class TestSeestarClient:
 
     @pytest.mark.asyncio
     async def test_client_connect(self, client, mock_connection):
-        """Test client connection."""
-        mock_connection.connect = AsyncMock(return_value=True)
+        """Test client connection calls connection.open() and sets is_connected."""
+        with patch.object(SeestarClient, "send_and_recv", new=AsyncMock(return_value=None)):
+            await client.connect()
 
-        result = await client.connect()
-
-        mock_connection.connect.assert_called_once()
-        # Actual return value depends on implementation
-        assert result is True or result is None
+        mock_connection.open.assert_called_once()
+        assert client.is_connected is True
+        # Clean up background tasks
+        await client.disconnect()
 
     @pytest.mark.asyncio
     async def test_client_disconnect(self, client, mock_connection):
-        """Test client disconnection."""
-        mock_connection.disconnect = AsyncMock()
-
+        """Test client disconnection calls connection.close() and clears is_connected."""
+        with patch.object(SeestarClient, "send_and_recv", new=AsyncMock(return_value=None)):
+            await client.connect()
         await client.disconnect()
 
-        mock_connection.disconnect.assert_called_once()
+        mock_connection.close.assert_called_once()
+        assert client.is_connected is False
 
     @pytest.mark.asyncio
     async def test_send_command(self, client, mock_connection):
@@ -262,34 +263,25 @@ class TestEventBus:
         assert hasattr(event_bus, "subscribe") or hasattr(event_bus, "on")
         assert hasattr(event_bus, "publish") or hasattr(event_bus, "emit")
 
-    def test_eventbus_subscribe_publish(self, event_bus):
-        """Test basic subscribe/publish functionality."""
+    @pytest.mark.asyncio
+    async def test_eventbus_subscribe_publish(self, event_bus):
+        """Test basic subscribe/publish with async listener."""
         received_events = []
 
-        def handler(event_data):
+        async def async_handler(event_data):
             received_events.append(event_data)
 
-        try:
-            # Try different possible method names
-            if hasattr(event_bus, "subscribe"):
-                event_bus.subscribe("test_event", handler)
-            elif hasattr(event_bus, "on"):
-                event_bus.on("test_event", handler)
+        event_bus.subscribe("test_event", async_handler)
 
-            # Publish an event
-            test_data = {"message": "test"}
-            if hasattr(event_bus, "publish"):
-                event_bus.publish("test_event", test_data)
-            elif hasattr(event_bus, "emit"):
-                event_bus.emit("test_event", test_data)
+        from scopinator.seestar.events import PiStatusEvent
+        test_event = PiStatusEvent(Timestamp="2024-01-01T00:00:00")
+        event_bus.emit("test_event", test_event)
 
-            # Check if event was received
-            # (This might be async, so we'll just check structure)
-            assert len(received_events) >= 0  # Basic structural test
+        # Give the async task time to run
+        await asyncio.sleep(0.05)
 
-        except (AttributeError, TypeError):
-            # EventBus might have different API
-            pytest.skip("EventBus has different API than expected")
+        assert len(received_events) == 1
+        assert received_events[0] is test_event
 
 
 # Test imaging client if available
