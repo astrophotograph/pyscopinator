@@ -1108,7 +1108,7 @@ wheels = [
 
 [[package]]
 name = "scopinator"
-version = "2026.1.26"
+version = "2026.3.11"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
