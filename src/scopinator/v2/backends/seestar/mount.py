@@ -171,9 +171,7 @@ class SeestarMount(Mount):
         # Convert from degrees to hours for Seestar
         # ScopeSync expects params as (ra_hours, dec_degrees) tuple
         ra_hours = coords.ra / 15.0
-        await self._client.send_and_recv(
-            ScopeSync(params=(ra_hours, coords.dec))
-        )
+        await self._client.send_and_recv(ScopeSync(params=(ra_hours, coords.dec)))
 
     async def park(self) -> None:
         """Park the Seestar."""

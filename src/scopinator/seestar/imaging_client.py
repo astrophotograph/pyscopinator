@@ -5,11 +5,7 @@ import threading
 import time
 
 import numpy as np
-from jinja2.nodes import NodeType
 
-from scopinator.seestar.commands.parameterized import IscopeStartView, IscopeStartViewParams, ScopeViewMode
-from scopinator.util.logging_config import get_logger
-logging = get_logger(__name__)
 from pydantic import BaseModel
 
 from scopinator.seestar.commands.imaging import (
@@ -23,11 +19,14 @@ from scopinator.seestar.events import (
     EventTypes,
     AnnotateResult,
     BaseEvent,
-    InternalEvent, ModeType,
+    InternalEvent,
 )
 from scopinator.seestar.protocol_handlers import BinaryProtocol, ScopeImage
 from scopinator.seestar.rtspclient import RtspClient
 from scopinator.util.eventbus import EventBus
+from scopinator.util.logging_config import get_logger
+
+logging = get_logger(__name__)
 
 U = TypeVar("U")
 
@@ -36,7 +35,9 @@ class SeestarImagingStatus(BaseModel):
     """Seestar imaging status."""
 
     temp: float | None = None
-    charger_status: Literal["Discharging", "Charging", "Full", "Not charging"] | None = None
+    charger_status: (
+        Literal["Discharging", "Charging", "Full", "Not charging"] | None
+    ) = None
     charge_online: bool | None = None
     battery_capacity: int | None = None
     stacked_frame: int = 0
@@ -48,13 +49,21 @@ class SeestarImagingStatus(BaseModel):
     is_fetching_images: bool = False
     is_receiving_image: bool = False  # True while receiving image data
     is_sending_image: bool = False
-    
+
     # Image retrieval timing
-    last_image_start_time: float | None = None  # Timestamp when image started being received (milliseconds)
-    last_image_end_time: float | None = None    # Timestamp when image was fully received (milliseconds)
-    last_image_elapsed_ms: float | None = None  # Time taken to receive the image in milliseconds
-    last_image_size_bytes: int | None = None    # Size of the last image in bytes
-    avg_image_elapsed_ms: float | None = None   # Rolling average of image retrieval times
+    last_image_start_time: float | None = (
+        None  # Timestamp when image started being received (milliseconds)
+    )
+    last_image_end_time: float | None = (
+        None  # Timestamp when image was fully received (milliseconds)
+    )
+    last_image_elapsed_ms: float | None = (
+        None  # Time taken to receive the image in milliseconds
+    )
+    last_image_size_bytes: int | None = None  # Size of the last image in bytes
+    avg_image_elapsed_ms: float | None = (
+        None  # Rolling average of image retrieval times
+    )
 
     def reset(self):
         self.temp = None
@@ -99,24 +108,28 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
     event_bus: EventBus | None = None
     binary_protocol: BinaryProtocol = BinaryProtocol()
     image: ScopeImage | None = None
-    secondary_image: ScopeImage | None = None # There could be a secondary camera.  Currently only applies to Streaming mode.
+    secondary_image: ScopeImage | None = (
+        None  # There could be a secondary camera.  Currently only applies to Streaming mode.
+    )
     client_mode: Literal["ContinuousExposure", "Stack", "Streaming"] | None = None
     cached_raw_image: Optional[ScopeImage] = None
     cached_raw_image_lock: threading.Lock = threading.Lock()
-    
+
     enhancement_settings_changed_event: Optional[asyncio.Event] = None
 
     # Timeout configuration
     connection_timeout: float = 10.0
     read_timeout: float = 30.0
     write_timeout: float = 10.0
-    
+
     # Connection monitoring
     connection_monitor_task: asyncio.Task | None = None
     _last_successful_read: float = 0.0
     _connection_check_interval: float = 15.0
     _reconnect_in_progress: bool = False
-    _image_timing_history: collections.deque = collections.deque(maxlen=20)  # Keep last 20 timings for average
+    _image_timing_history: collections.deque = collections.deque(
+        maxlen=20
+    )  # Keep last 20 timings for average
 
     def __init__(
         self,
@@ -130,8 +143,9 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
         # Create an EventBus if none provided
         if event_bus is None:
             from scopinator.util.eventbus import EventBus
+
             event_bus = EventBus()
-            
+
         super().__init__(
             host=host,
             port=port,
@@ -143,13 +157,13 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
 
         self.event_bus.add_listener("Stack", self._handle_stack_event)
         self.event_bus.add_listener("ClientModeChanged", self._handle_client_mode)
-        
+
         # Initialize enhancement settings changed event
         self.enhancement_settings_changed_event = asyncio.Event()
-        
+
         # Initialize cached image lock
         self.cached_raw_image_lock = threading.Lock()
-        
+
         self.connection = SeestarConnection(
             host=host,
             port=port,
@@ -166,8 +180,9 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
             try:
                 # Start timing when we begin receiving header (in milliseconds)
                 import time
+
                 image_start_time = time.time() * 1000
-                
+
                 header = await self.connection.read_exactly(80)
                 if header is None:
                     # Connection issue handled by connection layer, just continue
@@ -176,7 +191,7 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
 
                 # Update last successful read timestamp
                 self._last_successful_read = time.time()
-                
+
                 size, id, width, height = self.binary_protocol.parse_header(header)
                 logging.trace(
                     f"imaging receive header: {size=} {width=} {height=} {id=}"
@@ -185,7 +200,14 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                 data = None
                 if size is not None:
                     # Check if this looks like image data (not a small control message)
-                    if width and height and width > 0 and height > 0 and size and size > 1000:
+                    if (
+                        width
+                        and height
+                        and width > 0
+                        and height > 0
+                        and size
+                        and size > 1000
+                    ):
                         # Mark that we're receiving an image
                         self.status.is_receiving_image = True
                         # Only update start time if we don't already have one
@@ -193,23 +215,29 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                         if not self.status.last_image_start_time:
                             self.status.last_image_start_time = image_start_time
                         self.status.last_image_size_bytes = size
-                    
+
                     data = await self.connection.read_exactly(size)
                     if data is None:
-                        logging.info(f"Connection interrupted while reading image data from {self.host}:{self.port}")
+                        logging.info(
+                            f"Connection interrupted while reading image data from {self.host}:{self.port}"
+                        )
                         # Connection was reset and reconnected, need to restart streaming
                         self.status.is_receiving_image = False
-                        
+
                         # If we were streaming, try to restart it
                         if self.status.is_streaming:
-                            logging.info(f"Restarting streaming after reconnection for {self.host}:{self.port}")
+                            logging.info(
+                                f"Restarting streaming after reconnection for {self.host}:{self.port}"
+                            )
                             try:
                                 # Send BeginStreaming command again
                                 _ = await self.send(BeginStreaming(id=21))
-                                logging.debug(f"Streaming restarted successfully for {self.host}:{self.port}")
+                                logging.debug(
+                                    f"Streaming restarted successfully for {self.host}:{self.port}"
+                                )
                             except Exception as e:
                                 logging.debug(f"Failed to restart streaming: {e}")
-                        
+
                         await asyncio.sleep(0.5)  # Give it a moment to stabilize
                         continue
 
@@ -220,35 +248,46 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                     self.image = await self.binary_protocol.handle_incoming_message(
                         width, height, data, id
                     )
-                    
+
                     # Clear receiving flag after processing
                     self.status.is_receiving_image = False
-                    
+
                     # Only update timing statistics for actual image data
                     # Skip small control messages (like TestConnection responses)
                     # Actual images should have reasonable dimensions and data size
-                    if width and height and width > 0 and height > 0 and size and size > 1000:
+                    if (
+                        width
+                        and height
+                        and width > 0
+                        and height > 0
+                        and size
+                        and size > 1000
+                    ):
                         # Calculate timing for actual images (already in milliseconds)
                         image_end_time = time.time() * 1000
                         elapsed_ms = image_end_time - image_start_time
-                        
+
                         # Ensure minimum of 0.1ms to avoid showing 0 for very fast operations
                         # (can happen with cached or local images)
                         if elapsed_ms < 0.1:
                             elapsed_ms = 0.1
-                        
+
                         # Update status with timing information
                         self.status.last_image_end_time = image_end_time
                         self.status.last_image_elapsed_ms = elapsed_ms
                         # Clear the start time now that the image is complete
                         self.status.last_image_start_time = None
-                        
+
                         # Update rolling average
                         self._image_timing_history.append(elapsed_ms)
                         if self._image_timing_history:
-                            self.status.avg_image_elapsed_ms = sum(self._image_timing_history) / len(self._image_timing_history)
-                        
-                        logging.debug(f"Image received in {elapsed_ms:.1f}ms (avg: {self.status.avg_image_elapsed_ms:.1f}ms, size: {size} bytes)")
+                            self.status.avg_image_elapsed_ms = sum(
+                                self._image_timing_history
+                            ) / len(self._image_timing_history)
+
+                        logging.debug(
+                            f"Image received in {elapsed_ms:.1f}ms (avg: {self.status.avg_image_elapsed_ms:.1f}ms, size: {size} bytes)"
+                        )
 
             except Exception as e:
                 logging.info(
@@ -279,7 +318,7 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
     async def connect(self):
         await self.connection.open()
         self.is_connected = True
-        
+
         # Cancel any existing reader task before starting a new one
         # This prevents duplicate readers after reconnection
         if self.reader_task:
@@ -290,7 +329,7 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
             except asyncio.CancelledError:
                 pass
             self.reader_task = None
-        
+
         self.status.reset()
 
         self._last_successful_read = time.time()
@@ -303,10 +342,10 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
     async def disconnect(self):
         """Disconnect from Seestar."""
         self.is_connected = False
-        
+
         if self.status.is_streaming:
             await self.stop_streaming()
-            
+
         # Cancel background tasks
         if self.background_task:
             self.background_task.cancel()
@@ -315,7 +354,7 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
             except asyncio.CancelledError:
                 pass
             self.background_task = None
-            
+
         if self.reader_task:
             self.reader_task.cancel()
             try:
@@ -323,7 +362,7 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
             except asyncio.CancelledError:
                 pass
             self.reader_task = None
-            
+
         if self.connection_monitor_task:
             self.connection_monitor_task.cancel()
             try:
@@ -331,7 +370,7 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
             except asyncio.CancelledError:
                 pass
             self.connection_monitor_task = None
-            
+
         await self.connection.close()
         logging.info(f"Disconnected from {self}")
 
@@ -371,20 +410,20 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                                 else:
                                     # First image, always consider it as changed
                                     changed = True
-                                
+
                                 if changed:
                                     last_image = image
                                     # I don't think we need to actually store the image if we're streaming?
-                                    #if camera_id == 0:
+                                    # if camera_id == 0:
                                     #    self.image = image  # Update current image
-                                    #else:
+                                    # else:
                                     #    self.secondary_image = image
                                     self.status.is_sending_image = True
                                     yield image
                                     self.status.is_sending_image = False
 
                                     # Cache the raw image for plate solving (this doesn't apply to streaming modes!)
-                                    #with self.cached_raw_image_lock:
+                                    # with self.cached_raw_image_lock:
                                     #    self.cached_raw_image = image
 
                             await asyncio.sleep(0)
@@ -396,9 +435,7 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                 if self.image is not None and self.image.image is not None:
                     # Check if image has changed from the last one we sent
                     if last_image.image is not None:
-                        changed = not np.array_equal(
-                            self.image.image, last_image.image
-                        )
+                        changed = not np.array_equal(self.image.image, last_image.image)
                     else:
                         # First image, always consider it as changed
                         changed = True
@@ -431,21 +468,33 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
             if self.status.is_receiving_image:
                 # Skip this frame request since we're already receiving an image
                 self.status.skipped_frame += 1
-                logging.debug(f"Skipped frame request (already receiving image). Total skipped: {self.status.skipped_frame}")
+                logging.debug(
+                    f"Skipped frame request (already receiving image). Total skipped: {self.status.skipped_frame}"
+                )
             else:
                 # Only grab the frame if we're streaming in client and not currently receiving
                 logging.debug("Grabbing frame")
                 # Update the start time when we request a new image
                 import time
+
                 self.status.last_image_start_time = time.time() * 1000
                 # Note: Don't set is_receiving_image here, let the reader set it when data arrives
                 try:
                     await self.send(GetStackedImage(id=23))
-                except (ConnectionError, ConnectionResetError, BrokenPipeError, OSError) as e:
-                    logging.warning(f"Connection lost while requesting stacked image: {e}")
+                except (
+                    ConnectionError,
+                    ConnectionResetError,
+                    BrokenPipeError,
+                    OSError,
+                ) as e:
+                    logging.warning(
+                        f"Connection lost while requesting stacked image: {e}"
+                    )
                     # Connection will be handled by reconnection logic
         else:
-            logging.debug(f"Got stack event; ignoring {event.state=} {self.status.is_fetching_images=}")
+            logging.debug(
+                f"Got stack event; ignoring {event.state=} {self.status.is_fetching_images=}"
+            )
 
     async def _handle_client_mode(self, event: BaseEvent):
         if isinstance(event, InternalEvent):
@@ -456,27 +505,43 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
             if existing == "ContinuousExposure":
                 try:
                     await self.stop_streaming()
-                except (ConnectionError, ConnectionResetError, BrokenPipeError, OSError) as e:
+                except (
+                    ConnectionError,
+                    ConnectionResetError,
+                    BrokenPipeError,
+                    OSError,
+                ) as e:
                     logging.warning(f"Connection lost while stopping streaming: {e}")
                     self.status.is_streaming = False
             if existing == "Streaming":
                 try:
                     await self.stop_rtsp()
-                except (ConnectionError, ConnectionResetError, BrokenPipeError, OSError) as e:
+                except (
+                    ConnectionError,
+                    ConnectionResetError,
+                    BrokenPipeError,
+                    OSError,
+                ) as e:
                     logging.warning(f"Connection lost while stopping RTSP: {e}")
                     self.status.is_rtsp_streaming = False
 
             # If transitioning from Idle/None to an active mode, attempt reconnection if needed
             if existing in ["Idle", None] and new_mode not in ["Idle", None]:
                 if not self.connection.is_connected():
-                    logging.info(f"Client mode changing from {existing} to {new_mode}, attempting reconnection")
+                    logging.info(
+                        f"Client mode changing from {existing} to {new_mode}, attempting reconnection"
+                    )
                     if not self._reconnect_in_progress:
                         self._reconnect_in_progress = True
                         try:
                             await self.connection.open()
-                            logging.info(f"Successfully reconnected for mode change to {new_mode}")
+                            logging.info(
+                                f"Successfully reconnected for mode change to {new_mode}"
+                            )
                         except Exception as e:
-                            logging.error(f"Failed to reconnect when changing to {new_mode}: {e}")
+                            logging.error(
+                                f"Failed to reconnect when changing to {new_mode}: {e}"
+                            )
                         finally:
                             self._reconnect_in_progress = False
 
@@ -484,13 +549,25 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
                 case "ContinuousExposure":
                     try:
                         await self.start_streaming()
-                    except (ConnectionError, ConnectionResetError, BrokenPipeError, OSError) as e:
-                        logging.warning(f"Connection lost while starting streaming: {e}")
+                    except (
+                        ConnectionError,
+                        ConnectionResetError,
+                        BrokenPipeError,
+                        OSError,
+                    ) as e:
+                        logging.warning(
+                            f"Connection lost while starting streaming: {e}"
+                        )
                         self.status.is_streaming = False
                 case "Streaming":
                     try:
                         await self.start_rtsp()
-                    except (ConnectionError, ConnectionResetError, BrokenPipeError, OSError) as e:
+                    except (
+                        ConnectionError,
+                        ConnectionResetError,
+                        BrokenPipeError,
+                        OSError,
+                    ) as e:
                         logging.warning(f"Connection lost while starting RTSP: {e}")
                         self.status.is_rtsp_streaming = False
                 # For Stacking, AutoGoto and None we don't need to do anything
@@ -533,7 +610,7 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
         if self.enhancement_settings_changed_event is not None:
             self.enhancement_settings_changed_event.set()
             logging.info("Enhancement settings changed event triggered")
-    
+
     def get_cached_raw_image(self) -> Optional[ScopeImage]:
         """Get the cached raw image."""
         with self.cached_raw_image_lock:
@@ -542,57 +619,76 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
     async def _connection_monitor(self):
         """Background task that monitors connection health and manages reconnection."""
         logging.info(f"Starting connection monitor task for {self}")
-        
+
         while self.is_connected:
             try:
                 await asyncio.sleep(self._connection_check_interval)
-                
+
                 if not self.is_connected:
                     break
-                    
+
                 # Check if we should attempt reconnection
-                if not self.connection.is_connected() and self._should_attempt_reconnection():
+                if (
+                    not self.connection.is_connected()
+                    and self._should_attempt_reconnection()
+                ):
                     if not self._reconnect_in_progress:
                         self._reconnect_in_progress = True
-                        logging.info(f"Connection monitor initiating reconnection for {self}")
+                        logging.info(
+                            f"Connection monitor initiating reconnection for {self}"
+                        )
                         try:
                             # Ensure clean state before reconnection
                             # Cancel the reader task if it's still running
                             if self.reader_task and not self.reader_task.done():
-                                logging.debug(f"Canceling reader task before reconnection for {self}")
+                                logging.debug(
+                                    f"Canceling reader task before reconnection for {self}"
+                                )
                                 self.reader_task.cancel()
                                 try:
                                     await self.reader_task
                                 except asyncio.CancelledError:
                                     pass
                                 self.reader_task = None
-                            
+
                             # Reconnect and restart the reader task
                             await self.connection.open()
-                            
+
                             # Restart the reader task after successful reconnection
                             self.reader_task = asyncio.create_task(self._reader())
-                            logging.info(f"Connection monitor successfully reconnected {self} and restarted reader task")
-                            
+                            logging.info(
+                                f"Connection monitor successfully reconnected {self} and restarted reader task"
+                            )
+
                             # If we were streaming, restart it
                             if self.status.is_streaming:
-                                logging.debug(f"Restarting streaming after connection monitor reconnection")
+                                logging.debug(
+                                    "Restarting streaming after connection monitor reconnection"
+                                )
                                 try:
                                     await self.send(BeginStreaming(id=21))
-                                    logging.debug(f"Streaming restarted by connection monitor")
+                                    logging.debug(
+                                        "Streaming restarted by connection monitor"
+                                    )
                                 except Exception as e:
-                                    logging.debug(f"Connection monitor failed to restart streaming: {e}")
+                                    logging.debug(
+                                        f"Connection monitor failed to restart streaming: {e}"
+                                    )
                         except Exception as e:
-                            logging.debug(f"Connection monitor failed to reconnect {self.host}:{self.port}: {type(e).__name__}")
+                            logging.debug(
+                                f"Connection monitor failed to reconnect {self.host}:{self.port}: {type(e).__name__}"
+                            )
                         finally:
                             self._reconnect_in_progress = False
-                            
+
             except Exception as e:
-                logging.debug(f"Error in connection monitor task for {self.host}:{self.port}: {type(e).__name__}")
+                logging.debug(
+                    f"Error in connection monitor task for {self.host}:{self.port}: {type(e).__name__}"
+                )
                 await asyncio.sleep(5.0)  # Wait before retrying
-                
+
         logging.debug(f"Connection monitor task stopped for {self}")
-    
+
     def _should_attempt_reconnection(self) -> bool:
         """Check if reconnection should be attempted based on client_mode."""
         return self.client_mode not in ["Idle", None]
@@ -601,7 +697,7 @@ class SeestarImagingClient(BaseModel, arbitrary_types_allowed=True):
         """Async context manager entry - connects to the telescope."""
         await self.connect()
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit - disconnects from the telescope."""
         await self.disconnect()

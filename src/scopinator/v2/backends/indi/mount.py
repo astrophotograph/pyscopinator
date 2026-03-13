@@ -10,7 +10,7 @@ from scopinator.v2.core.capabilities import MountCapabilities
 from scopinator.v2.core.devices import Mount, MountStatus
 from scopinator.v2.core.events import EventType, SlewEvent, UnifiedEventBus
 from scopinator.v2.core.exceptions import DeviceError, NotConnectedError
-from scopinator.v2.core.types import Coordinates, PierSide, SlewState, TrackingRate
+from scopinator.v2.core.types import Coordinates, PierSide, SlewState
 
 if TYPE_CHECKING:
     from scopinator.v2.backends.indi.backend import INDIClient
@@ -64,12 +64,16 @@ class INDIMount(Mount):
             raise NotConnectedError(f"Device {self._device_name} not found")
         return self._device
 
-    def _get_number(self, property_name: str) -> Optional["PyIndi.INumberVectorProperty"]:
+    def _get_number(
+        self, property_name: str
+    ) -> Optional["PyIndi.INumberVectorProperty"]:
         """Get a number property."""
         device = self._get_device()
         return device.getNumber(property_name)
 
-    def _get_switch(self, property_name: str) -> Optional["PyIndi.ISwitchVectorProperty"]:
+    def _get_switch(
+        self, property_name: str
+    ) -> Optional["PyIndi.ISwitchVectorProperty"]:
         """Get a switch property."""
         device = self._get_device()
         return device.getSwitch(property_name)

@@ -9,10 +9,13 @@ from scopinator.seestar.commands.common import BaseCommand
 
 class PiReboot(BaseCommand):
     """Reboot the Seestar."""
+
     method: Literal["pi_reboot"] = "pi_reboot"
+
 
 class ScopeSync(BaseCommand):
     """Sync the scope from the Seestar."""
+
     method: Literal["scope_sync"] = "scope_sync"
     params: tuple[float, float]
 
@@ -26,6 +29,7 @@ class ScopePark(BaseCommand):
 
 class TestConnection(BaseCommand):
     """Test the connection to the Seestar."""
+
     __test__ = False
 
     method: Literal["test_connection"] = "test_connection"
@@ -58,6 +62,7 @@ class GetDeviceState(BaseCommand):
 
 class GetDiskVolume(BaseCommand):
     """Get the disk volume from the Seestar."""
+
     method: Literal["get_disk_volume"] = "get_disk_volume"
 
 
@@ -135,6 +140,7 @@ class GetWheelState(BaseCommand):
 
 class PiIsVerified(BaseCommand):
     """Set that the Pi is verified."""
+
     method: Literal["pi_is_verified"] = "pi_is_verified"
 
 
@@ -156,12 +162,6 @@ class ScopeGetHorizCoord(BaseCommand):
     method: Literal["scope_get_horiz_coord"] = "scope_get_horiz_coord"
 
 
-class ScopePark(BaseCommand):
-    """Park the scope from the Seestar."""
-
-    method: Literal["scope_park"] = "scope_park"
-
-
 class StartAutoFocus(BaseCommand):
     """Start the auto focus from the Seestar."""
 
@@ -176,6 +176,7 @@ class StopAutoFocus(BaseCommand):
 
 class StartScanPlanet(BaseCommand):
     """Start the scan plan from the Seestar."""
+
     method: Literal["start_scan_planet"] = "start_scan_planet"
 
 
@@ -467,6 +468,7 @@ class GetDeviceStateResponse(BaseModel):
     """Response from GetDeviceState.
 
     All fields are optional because during the request, the response keys may be specified."""
+
     device: Optional[DeviceInfo] = None
     setting: Optional[DeviceSettings] = None
     location_lon_lat: Optional[List[float]] = None

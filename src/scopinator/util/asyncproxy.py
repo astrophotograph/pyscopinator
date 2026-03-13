@@ -4,7 +4,6 @@ from asyncio.streams import StreamReader, StreamWriter
 from contextlib import closing
 from typing import Tuple, Optional
 
-import async_timeout
 
 StreamPair = Tuple[StreamReader, StreamWriter]
 

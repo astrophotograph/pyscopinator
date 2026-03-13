@@ -5,9 +5,11 @@ Profiles store telescope configuration for easy reconnection.
 """
 
 import asyncio
-import json
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from scopinator.profile import AstronomyProfile
 
 import click
 
@@ -84,6 +86,7 @@ def list_cmd():
         # Load profile to show summary
         try:
             from scopinator.profile import AstronomyProfile
+
             prof = AstronomyProfile.load(path)
 
             # Format device info
@@ -95,7 +98,7 @@ def list_cmd():
                 click.echo(f"    Host: {host}")
             else:
                 click.echo(f"  {name}")
-                click.echo(f"    Type: Component-based profile")
+                click.echo("    Type: Component-based profile")
 
             if prof.description:
                 click.echo(f"    Description: {prof.description}")
@@ -115,13 +118,14 @@ def show(name: str):
 
     if not path.exists():
         click.echo(f"Profile '{name}' not found.")
-        click.echo(f"\nAvailable profiles:")
+        click.echo("\nAvailable profiles:")
         for pname, _ in list_profiles():
             click.echo(f"  - {pname}")
         return
 
     try:
         from scopinator.profile import AstronomyProfile
+
         prof = AstronomyProfile.load(path)
 
         click.echo(f"Profile: {prof.name}")
@@ -138,14 +142,14 @@ def show(name: str):
             click.echo(f"  Model: {dev.model or 'N/A'}")
             click.echo(f"  Host: {dev.host or 'N/A'}")
             click.echo(f"  Port: {dev.port}")
-            if hasattr(dev, 'imaging_port') and dev.imaging_port:
+            if hasattr(dev, "imaging_port") and dev.imaging_port:
                 click.echo(f"  Imaging Port: {dev.imaging_port}")
             click.echo(f"  Provides: {', '.join(dev.provides)}")
 
             # Show additional specs for Seestar
-            if hasattr(dev, 'aperture_mm'):
+            if hasattr(dev, "aperture_mm"):
                 click.echo(f"  Aperture: {dev.aperture_mm}mm")
-            if hasattr(dev, 'focal_length_mm'):
+            if hasattr(dev, "focal_length_mm"):
                 click.echo(f"  Focal Length: {dev.focal_length_mm}mm")
 
         click.echo()
@@ -167,19 +171,42 @@ def show(name: str):
 
 @profile.command("create")
 @click.option("--name", "-n", required=True, help="Profile name")
-@click.option("--protocol", "-P", type=click.Choice(["seestar", "alpaca", "indi"]),
-              default="seestar", help="Protocol to use")
+@click.option(
+    "--protocol",
+    "-P",
+    type=click.Choice(["seestar", "alpaca", "indi"]),
+    default="seestar",
+    help="Protocol to use",
+)
 @click.option("--host", "-h", required=True, help="Device host address")
-@click.option("--port", "-p", type=int, help="Device port (uses protocol default if not specified)")
+@click.option(
+    "--port",
+    "-p",
+    type=int,
+    help="Device port (uses protocol default if not specified)",
+)
 @click.option("--description", "-d", help="Profile description")
 @click.option("--latitude", type=float, help="Observer latitude (-90 to 90)")
 @click.option("--longitude", type=float, help="Observer longitude (-180 to 180)")
 @click.option("--elevation", type=float, help="Observer elevation in meters")
-@click.option("--format", "-f", type=click.Choice(["json", "yaml"]), default="json",
-              help="Output format")
-def create(name: str, protocol: str, host: str, port: Optional[int],
-           description: Optional[str], latitude: Optional[float],
-           longitude: Optional[float], elevation: Optional[float], format: str):
+@click.option(
+    "--format",
+    "-f",
+    type=click.Choice(["json", "yaml"]),
+    default="json",
+    help="Output format",
+)
+def create(
+    name: str,
+    protocol: str,
+    host: str,
+    port: Optional[int],
+    description: Optional[str],
+    latitude: Optional[float],
+    longitude: Optional[float],
+    elevation: Optional[float],
+    format: str,
+):
     """Create a new profile manually."""
     from scopinator.profile import AstronomyProfile
     from scopinator.profile.astronomy_profile import SeestarDevice, IntegratedDevice
@@ -315,16 +342,14 @@ def test(name: str, timeout: float):
 
     try:
         from scopinator.profile import AstronomyProfile
+
         profile = AstronomyProfile.load(path)
 
         click.echo(f"Testing connection to '{profile.name}'...")
 
         async def test_connection():
             try:
-                success = await asyncio.wait_for(
-                    profile.connect(),
-                    timeout=timeout
-                )
+                success = await asyncio.wait_for(profile.connect(), timeout=timeout)
                 if success:
                     status = await profile.get_status()
                     await profile.disconnect()
@@ -370,8 +395,8 @@ def use(name: str):
     current_file.write_text(name)
 
     click.echo(f"Using profile '{name}' for this session.")
-    click.echo(f"\nCommands will now use this profile by default.")
-    click.echo(f"Override with --profile <name> on any command.")
+    click.echo("\nCommands will now use this profile by default.")
+    click.echo("Override with --profile <name> on any command.")
 
 
 def get_current_profile() -> Optional[str]:

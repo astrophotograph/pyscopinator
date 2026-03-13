@@ -1,14 +1,13 @@
 """Enhanced response models for parsing telescope message data."""
 
 from typing import Any, Literal, Optional, Union
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, field_validator
 from datetime import datetime
 
 from .common import CommandResponse
 from .simple import (
     GetTimeResponse,
     GetCameraInfoResponse,
-    GetCameraStateResponse,
     GetDiskVolumeResponse,
     GetDeviceStateResponse,
 )

@@ -1,6 +1,6 @@
 [project]
 name = "scopinator"
-version = "2026.1.26"
+version = "2026.3.11"
 authors = [
     { name = "Steven", email = "erewhon@flatland.org" }
 ]
@@ -51,6 +51,7 @@ dev = [
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
     "pytest-cov>=6.2.1",
+    "ruff>=0.9.0",
 ]
 
 [tool.pytest.ini_options]
@@ -60,3 +61,19 @@ markers = [
 testpaths = ["tests"]
 # By default, exclude hardware tests
 addopts = "-m 'not hardware'"
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["src/scopinator"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "pass",
+    "\\.\\.\\.",
+]
+show_missing = true

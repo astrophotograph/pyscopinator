@@ -27,11 +27,19 @@ class Command(BaseModel, ABC):
     """
 
     name: str = Field(..., description="Name of the command")
-    description: Optional[str] = Field(None, description="Optional description of the command")
-    status: CommandStatus = Field(default=CommandStatus.PENDING, description="Current execution status")
+    description: Optional[str] = Field(
+        None, description="Optional description of the command"
+    )
+    status: CommandStatus = Field(
+        default=CommandStatus.PENDING, description="Current execution status"
+    )
     error: Optional[str] = Field(None, description="Error message if command failed")
-    started_at: Optional[datetime] = Field(None, description="When the command started executing")
-    completed_at: Optional[datetime] = Field(None, description="When the command completed")
+    started_at: Optional[datetime] = Field(
+        None, description="When the command started executing"
+    )
+    completed_at: Optional[datetime] = Field(
+        None, description="When the command completed"
+    )
 
     class Config:
         """Pydantic configuration."""

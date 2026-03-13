@@ -4,14 +4,17 @@ import asyncio
 from asyncio import StreamReader, StreamWriter, IncompleteReadError
 from collections.abc import Callable
 from typing import Optional
+import random
+
 from pydantic import BaseModel, ConfigDict
 from scopinator.util.logging_config import get_logger
+
 logging = get_logger(__name__)
-import random
 
 
 class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
     """Connection with Seestar."""
+
     model_config = ConfigDict(extra="allow")
 
     reader: StreamReader | None = None
@@ -108,7 +111,7 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
         return (
             self._is_connected and self.reader is not None and self.writer is not None
         )
-    
+
     def get_connection_stats(self) -> dict:
         """Get connection statistics."""
         return {
@@ -118,7 +121,7 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
             "written_messages": self.written_messages,
             "read_messages": self.read_messages,
             "host": self.host,
-            "port": self.port
+            "port": self.port,
         }
 
     def _is_connection_reset_error(self, error: Exception) -> bool:
@@ -138,16 +141,16 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
     async def _reconnect_with_backoff(self) -> bool:
         """Attempt to reconnect with exponential backoff."""
         import time
-        
+
         # Use lock to prevent concurrent reconnection attempts
         if self._reconnect_lock is None:
             self._reconnect_lock = asyncio.Lock()
-            
+
         async with self._reconnect_lock:
             # Check if another coroutine already reconnected
             if self.is_connected():
                 return True
-            
+
             # Check if reconnection is already in progress
             if self._reconnect_in_progress:
                 # Wait for the other reconnection attempt to complete
@@ -158,18 +161,19 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
                     if self.is_connected():
                         return True
                 return self.is_connected()
-            
+
             self._reconnect_in_progress = True
             try:
                 return await self._do_reconnect_with_backoff()
             finally:
                 self._reconnect_in_progress = False
-    
+
     async def _do_reconnect_with_backoff(self) -> bool:
         """Internal method to perform reconnection with backoff."""
         import time
+
         current_time = time.time()
-        
+
         # Check if reconnection is allowed via callback
         if self._should_reconnect_callback and not self._should_reconnect_callback():
             logging.debug(
@@ -178,32 +182,40 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
             return False
 
         self._reconnect_attempts += 1
-        
+
         # Check if this looks like a reboot (multiple failures within a short time)
         if not self._reboot_detected and self._reconnect_attempts >= 3:
-            if current_time - self._last_reboot_time > 300:  # 5 minutes since last reboot
+            if (
+                current_time - self._last_reboot_time > 300
+            ):  # 5 minutes since last reboot
                 self._reboot_detected = True
                 self._last_reboot_time = current_time
                 logging.info(
                     f"Telescope at {self.host}:{self.port} appears to be rebooting. "
                     f"Will continue reconnection attempts with reduced logging."
                 )
-        
+
         # Use exponential backoff but cap at max delay, don't give up after max attempts
         # Reset attempts counter periodically to prevent overflow and allow fresh logging
-        if self._reconnect_attempts > 50:  # Reset after many attempts to refresh logging
+        if (
+            self._reconnect_attempts > 50
+        ):  # Reset after many attempts to refresh logging
             self._reconnect_attempts = 10
-            
+
         # Use longer delays if reboot detected
         if self._reboot_detected:
             delay = min(
-                5.0 * (2 ** min(self._reconnect_attempts - 1, 3)),  # Start at 5s for reboots
-                self._max_reconnect_delay
+                5.0
+                * (
+                    2 ** min(self._reconnect_attempts - 1, 3)
+                ),  # Start at 5s for reboots
+                self._max_reconnect_delay,
             ) + random.uniform(0, 2)
         else:
             delay = min(
-                self._base_reconnect_delay * (2 ** min(self._reconnect_attempts - 1, 6)),  # Cap exponential growth
-                self._max_reconnect_delay
+                self._base_reconnect_delay
+                * (2 ** min(self._reconnect_attempts - 1, 6)),  # Cap exponential growth
+                self._max_reconnect_delay,
             ) + random.uniform(0, 1)
 
         # Only log reconnection attempts periodically to avoid spam
@@ -216,13 +228,13 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
             logging.debug(
                 f"Reconnection attempt #{self._reconnect_attempts} to {self.host}:{self.port} in {delay:.2f}s"
             )
-            
+
         await asyncio.sleep(delay)
 
         try:
             await self.close()  # Ensure clean state
             await self.open()
-            
+
             # Log successful reconnection appropriately based on context
             if self._reboot_detected:
                 logging.info(
@@ -235,7 +247,7 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
                     f"Successfully reconnected to {self.host}:{self.port} "
                     f"(after {self._reconnect_attempts} attempts)"
                 )
-            
+
             self._last_reconnect_log = 0.0  # Reset log throttling on success
             self._reconnect_attempts = 0  # Reset attempts counter
             return True
@@ -352,9 +364,7 @@ class SeestarConnection(BaseModel, arbitrary_types_allowed=True):
 
                 # Attempt reconnection
                 if await self._reconnect_with_backoff():
-                    logging.debug(
-                        "Reconnection successful after read_exactly failure"
-                    )
+                    logging.debug("Reconnection successful after read_exactly failure")
                     # Don't retry the read here, let the caller handle it
                     return None
                 else:

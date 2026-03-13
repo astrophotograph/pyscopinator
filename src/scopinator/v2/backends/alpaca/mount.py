@@ -14,7 +14,7 @@ import aiohttp
 from scopinator.v2.core.capabilities import MountCapabilities
 from scopinator.v2.core.devices import Mount, MountStatus
 from scopinator.v2.core.events import EventType, SlewEvent, UnifiedEventBus
-from scopinator.v2.core.exceptions import CommandError, DeviceError, NotConnectedError
+from scopinator.v2.core.exceptions import CommandError
 from scopinator.v2.core.types import (
     AltAzCoordinates,
     Coordinates,
@@ -386,24 +386,16 @@ class AlpacaMount(Mount):
         coords = results[0] if not isinstance(results[0], Exception) else None
         tracking = results[1] if not isinstance(results[1], Exception) else False
         slewing = (
-            results[2]["Value"]
-            if not isinstance(results[2], Exception)
-            else False
+            results[2]["Value"] if not isinstance(results[2], Exception) else False
         )
         at_park = (
-            results[3]["Value"]
-            if not isinstance(results[3], Exception)
-            else False
+            results[3]["Value"] if not isinstance(results[3], Exception) else False
         )
         at_home = (
-            results[4]["Value"]
-            if not isinstance(results[4], Exception)
-            else False
+            results[4]["Value"] if not isinstance(results[4], Exception) else False
         )
         pier_side_val = (
-            results[5]["Value"]
-            if not isinstance(results[5], Exception)
-            else -1
+            results[5]["Value"] if not isinstance(results[5], Exception) else -1
         )
 
         # Determine state

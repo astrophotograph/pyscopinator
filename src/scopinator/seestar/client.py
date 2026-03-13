@@ -13,9 +13,7 @@ try:
     import tzlocal
 except ImportError:
     tzlocal = None
-from scopinator.util.logging_config import get_logger
 
-logging = get_logger(__name__)
 from pydantic import BaseModel, Field
 
 from scopinator.seestar.commands.common import CommandResponse
@@ -63,6 +61,9 @@ from scopinator.seestar.events import (
 )
 from scopinator.seestar.protocol_handlers import TextProtocol
 from scopinator.util.eventbus import EventBus
+from scopinator.util.logging_config import get_logger
+
+logging = get_logger(__name__)
 
 U = TypeVar("U")
 
@@ -409,12 +410,11 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                         self.status.totalMB = response.result.get("totalMB")
                     else:
                         if response is None:
-                            logging.debug(
-                                f"Disk volume response missing from {self}"
-                            )
-                        elif getattr(response, "code", None) == 255 or getattr(
-                            response, "error", ""
-                        ) == "file not exist":
+                            logging.debug(f"Disk volume response missing from {self}")
+                        elif (
+                            getattr(response, "code", None) == 255
+                            or getattr(response, "error", "") == "file not exist"
+                        ):
                             logging.debug(
                                 f"Disk volume not available from {self}: {response}"
                             )
@@ -882,7 +882,7 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
                     if wheel_event.state == "complete":
                         self.status.lp_filter = wheel_event.position == 2
                 case "View":
-                    self._process_view(parser.event.dict())
+                    self._process_view(parser.event.model_dump())
                 case "ScopeGoto":
                     if parser.event.cur_ra_dec is not None:
                         self.status.ra = parser.event.cur_ra_dec.ra

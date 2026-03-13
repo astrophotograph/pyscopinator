@@ -70,9 +70,15 @@ class UnifiedEvent(BaseModel):
 
     event_type: EventType
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-    source_device: str = Field(default="", description="Device that generated the event")
-    source_backend: str = Field(default="", description="Backend type (seestar, alpaca, indi)")
-    data: dict[str, Any] = Field(default_factory=dict, description="Event-specific data")
+    source_device: str = Field(
+        default="", description="Device that generated the event"
+    )
+    source_backend: str = Field(
+        default="", description="Backend type (seestar, alpaca, indi)"
+    )
+    data: dict[str, Any] = Field(
+        default_factory=dict, description="Event-specific data"
+    )
 
     model_config = {"use_enum_values": False}
 
@@ -93,7 +99,9 @@ class ExposureEvent(UnifiedEvent):
 
     duration_seconds: float = Field(default=0.0, description="Total exposure duration")
     elapsed_seconds: float = Field(default=0.0, description="Elapsed time")
-    progress: float = Field(default=0.0, ge=0.0, le=1.0, description="Progress 0.0 to 1.0")
+    progress: float = Field(
+        default=0.0, ge=0.0, le=1.0, description="Progress 0.0 to 1.0"
+    )
     frames_captured: int = Field(default=0, description="Number of frames captured")
     frames_stacked: int = Field(default=0, description="Number of frames stacked")
     frames_dropped: int = Field(default=0, description="Number of frames dropped")
@@ -103,7 +111,9 @@ class FocuserEvent(UnifiedEvent):
     """Focuser-related event with position information."""
 
     position: int = Field(default=0, description="Current position")
-    target_position: Optional[int] = Field(None, description="Target position if moving")
+    target_position: Optional[int] = Field(
+        None, description="Target position if moving"
+    )
     temperature: Optional[float] = Field(None, description="Temperature in Celsius")
 
 

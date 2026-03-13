@@ -6,7 +6,12 @@ from skimage.util import img_as_float32
 
 from scopinator.imaging.image_processor import ImageProcessor
 from scopinator.imaging.stretch import stretch, StretchParameters, StretchParameter
-from scopinator.imaging.upscaler import ImageEnhancementProcessor, UpscalingMethod, SharpeningMethod, DenoiseMethod
+from scopinator.imaging.upscaler import (
+    ImageEnhancementProcessor,
+    UpscalingMethod,
+    SharpeningMethod,
+    DenoiseMethod,
+)
 from scopinator.util.logging_config import get_logger
 
 logging = get_logger(__name__)
@@ -22,22 +27,29 @@ class GraxpertStretch(ImageProcessor):
     ) -> Optional[np.ndarray]:
         # Use provided parameter or default
         stretch_param = stretch_parameter or self.stretch_parameter
-        
-        logging.trace(f"GraxpertStretch.process() starting with stretch_param: {stretch_param}")
+
+        logging.trace(
+            f"GraxpertStretch.process() starting with stretch_param: {stretch_param}"
+        )
         logging.trace(f"Input image shape: {image.shape}, dtype: {image.dtype}")
-        
+
         # Convert to float32 for processing
         image_array = img_as_float32(image)
         if np.min(image_array) < 0 or np.max(image_array > 1):
             image_array = exposure.rescale_intensity(image_array, out_range=(0, 1))
 
         # FIRST: Apply upscaling if enabled (before stretching for better quality)
-        if self.enhancement_processor.upscaling_enabled and self.enhancement_processor.scale_factor > 1.0:
-            logging.trace(f"Applying upscaling BEFORE stretching: method={self.enhancement_processor.upscaling_method}, scale_factor={self.enhancement_processor.scale_factor}")
+        if (
+            self.enhancement_processor.upscaling_enabled
+            and self.enhancement_processor.scale_factor > 1.0
+        ):
+            logging.trace(
+                f"Applying upscaling BEFORE stretching: method={self.enhancement_processor.upscaling_method}, scale_factor={self.enhancement_processor.scale_factor}"
+            )
             image_array = self.enhancement_processor.upscaler.upscale(
-                image_array, 
-                scale_factor=self.enhancement_processor.scale_factor, 
-                method=self.enhancement_processor.upscaling_method
+                image_array,
+                scale_factor=self.enhancement_processor.scale_factor,
+                method=self.enhancement_processor.upscaling_method,
             )
             logging.trace(f"Upscaling complete, new shape: {image_array.shape}")
 
@@ -45,11 +57,14 @@ class GraxpertStretch(ImageProcessor):
         logging.trace(f"Applying stretch with StretchParameters({stretch_param})")
         image_display = stretch(image_array, StretchParameters(stretch_param))
         image_display = image_display * 255
-        logging.trace(f"Stretch complete, image range: {np.min(image_display):.2f} - {np.max(image_display):.2f}")
+        logging.trace(
+            f"Stretch complete, image range: {np.min(image_display):.2f} - {np.max(image_display):.2f}"
+        )
 
         # THIRD: Apply remaining enhancements (denoising, deconvolution, sharpening)
         # Create a temporary processor without upscaling since we already did it
         from scopinator.imaging.upscaler import ImageEnhancementProcessor
+
         temp_processor = ImageEnhancementProcessor(
             upscaling_enabled=False,  # Already done
             scale_factor=1.0,
@@ -62,12 +77,16 @@ class GraxpertStretch(ImageProcessor):
             denoise_strength=self.enhancement_processor.denoise_strength,
             deconvolve_enabled=self.enhancement_processor.deconvolve_enabled,
             deconvolve_strength=self.enhancement_processor.deconvolve_strength,
-            deconvolve_psf_size=self.enhancement_processor.deconvolve_psf_size
+            deconvolve_psf_size=self.enhancement_processor.deconvolve_psf_size,
         )
-        
-        logging.trace(f"Calling enhancement_processor.process() for remaining enhancements on image with shape: {image_display.shape}")
+
+        logging.trace(
+            f"Calling enhancement_processor.process() for remaining enhancements on image with shape: {image_display.shape}"
+        )
         image_display = temp_processor.process(image_display)
-        logging.trace(f"Enhancement processing complete, final shape: {image_display.shape}")
+        logging.trace(
+            f"Enhancement processing complete, final shape: {image_display.shape}"
+        )
 
         return image_display
 
@@ -91,7 +110,7 @@ class GraxpertStretch(ImageProcessor):
     ):
         """Configure upscaling parameters."""
         self.enhancement_processor.set_upscaling_params(enabled, scale_factor, method)
-    
+
     def set_sharpening_params(
         self,
         enabled: bool,
@@ -100,7 +119,7 @@ class GraxpertStretch(ImageProcessor):
     ):
         """Configure sharpening parameters."""
         self.enhancement_processor.set_sharpening_params(enabled, method, strength)
-    
+
     def set_denoise_params(
         self,
         enabled: bool,
@@ -108,11 +127,13 @@ class GraxpertStretch(ImageProcessor):
         strength: float = 1.0,
     ):
         """Configure denoising parameters."""
-        logging.trace(f"GraxpertStretch.set_denoise_params: enabled={enabled}, method={method}, strength={strength}")
+        logging.trace(
+            f"GraxpertStretch.set_denoise_params: enabled={enabled}, method={method}, strength={strength}"
+        )
         self.enhancement_processor.denoise_enabled = enabled
         self.enhancement_processor.denoise_method = method
         self.enhancement_processor.denoise_strength = strength
-    
+
     def set_deconvolve_params(
         self,
         enabled: bool,
@@ -120,9 +141,11 @@ class GraxpertStretch(ImageProcessor):
         psf_size: float = 2.0,
     ):
         """Configure deconvolution parameters."""
-        logging.trace(f"GraxpertStretch.set_deconvolve_params: enabled={enabled}, strength={strength}, psf_size={psf_size}")
+        logging.trace(
+            f"GraxpertStretch.set_deconvolve_params: enabled={enabled}, strength={strength}, psf_size={psf_size}"
+        )
         self.enhancement_processor.set_deconvolve_params(enabled, strength, psf_size)
-    
+
     def get_enhancement_settings(self) -> dict:
         """Get all current enhancement settings."""
         settings = self.enhancement_processor.get_enhancement_settings()

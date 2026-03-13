@@ -6,6 +6,7 @@ import socket
 import ipaddress
 from typing import List, Tuple, Set
 from scopinator.util.logging_config import get_logger
+
 logging = get_logger(__name__)
 
 # Global registry to track known telescopes and avoid duplicate logging
@@ -36,15 +37,19 @@ def get_all_network_interfaces() -> List[Tuple[str, str]]:
         # Try psutil as second option (usually available)
         try:
             import psutil
-            
+
             for interface_name, addrs in psutil.net_if_addrs().items():
                 for addr in addrs:
-                    if addr.family == socket.AF_INET and not addr.address.startswith("127."):
+                    if addr.family == socket.AF_INET and not addr.address.startswith(
+                        "127."
+                    ):
                         ip = addr.address
                         netmask = addr.netmask
                         if ip and netmask:
                             # Calculate broadcast address
-                            network = ipaddress.IPv4Network(f"{ip}/{netmask}", strict=False)
+                            network = ipaddress.IPv4Network(
+                                f"{ip}/{netmask}", strict=False
+                            )
                             broadcast = str(network.broadcast_address)
                             interfaces.append((ip, broadcast))
         except (ImportError, Exception):
@@ -89,7 +94,7 @@ def get_network_info():
 async def discover_seestars(timeout: float = 10.0):
     """Discover Seestars using asyncio for asynchronous UDP broadcasting on all network interfaces."""
     global _initial_discovery_complete
-    
+
     discovered_devices = []
     discovered_ips = set()  # Track unique device IPs
 
@@ -118,7 +123,7 @@ async def discover_seestars(timeout: float = 10.0):
     # Run all discoveries in parallel
     logging.debug(f"Running {len(tasks)} discovery tasks with timeout {timeout}s")
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    
+
     # Log any exceptions
     for i, result in enumerate(results):
         if isinstance(result, Exception):
@@ -144,7 +149,7 @@ async def discover_seestars(timeout: float = 10.0):
         logging.trace(
             f"Discovery complete. Found {len(discovered_devices)} device(s) (no new devices)"
         )
-    
+
     return discovered_devices
 
 
@@ -185,7 +190,7 @@ async def discover_on_interface(
 
             def datagram_received(self, data, addr):
                 global _known_telescopes, _initial_discovery_complete
-                
+
                 device_ip = addr[0]
                 logging.trace(f"Received response from {addr}: {data.decode('utf-8')}")
                 try:

@@ -51,8 +51,12 @@ class StretchParameters:
         self.images_linked = images_linked
 
         # Convert enum to string for comparison
-        stretch_name = stretch_option.name if hasattr(stretch_option, 'name') else str(stretch_option)
-        
+        stretch_name = (
+            stretch_option.name
+            if hasattr(stretch_option, "name")
+            else str(stretch_option)
+        )
+
         if stretch_name == "No Stretch":
             self.do_stretch = False
             self.bg = 0.15  # Default values even when not stretching
@@ -73,7 +77,7 @@ class StretchParameters:
         elif stretch_name == "30% Bg, 2 sigma":
             self.bg = 0.3
             self.sigma = 2.0
-            
+
         else:
             # Default fallback
             self.bg = 0.15
@@ -165,7 +169,7 @@ def stretch_channel(shm_name, c, mtf_stretch_params, shape, dtype):
         ) / (mtf_stretch_params.highlight_clipping - mtf_stretch_params.shadow_clipping)
 
         channel = MTF(channel, mtf_stretch_params.midtone)
-    except:
+    except Exception:
         logging.exception("An error occured while stretching a color channel")
     finally:
         existing_shm.close()
