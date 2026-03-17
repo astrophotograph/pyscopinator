@@ -796,6 +796,13 @@ class SeestarClient(BaseModel, arbitrary_types_allowed=True):
             existing_params = data.get("params")
 
             if isinstance(existing_params, dict):
+                # Firmware 7.06+ (2706+) rejects verify injected into dict params:
+                #   - {"verify": true} inside the dict → code 109 "unexpected param"
+                #   - [dict, "verify"] list-wrap → code 107 "expected object param"
+                # The device is SSL-authenticated (is_verified: True) so dict-param
+                # commands don't need verify at all on 7.06+.
+                if self._get_firmware_ver_int() >= 2706:
+                    return data
                 if "verify" not in existing_params:
                     existing_params["verify"] = True
                 data["params"] = existing_params
