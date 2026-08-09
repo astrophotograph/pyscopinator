@@ -175,6 +175,11 @@ class TestFirmwareVersion:
         client.status.device_state = {"device": {"firmware_ver_int": 2583}}
         assert client._should_inject_verify() is True
 
+    def test_should_inject_verify_firmware_2706(self, client):
+        # 7.06+ still passes _should_inject_verify (dict-param guard is in transform)
+        client.status.device_state = {"device": {"firmware_ver_int": 2706}}
+        assert client._should_inject_verify() is True
+
 
 # ---------------------------------------------------------------------------
 # _transform_message_for_verify
@@ -232,6 +237,32 @@ class TestTransformMessageForVerify:
         result = client._transform_message_for_verify(data)
         # Empty list: no "verify" at end, wraps as [[], "verify"]
         assert "verify" in result["params"]
+
+    def test_firmware_2706_dict_params_not_modified(self, client):
+        # 2706+ skips verify for dict params (device rejects it with code 109/107)
+        client.status.device_state = {"device": {"firmware_ver_int": 2706}}
+        data = {"method": "test", "params": {"foo": "bar"}}
+        result = client._transform_message_for_verify(data)
+        assert result["params"] == {"foo": "bar"}
+
+    def test_firmware_2706_list_params_still_get_verify(self, client):
+        # 2706+ only skips verify for dict params; list params still get it
+        client.status.device_state = {"device": {"firmware_ver_int": 2706}}
+        data = {"method": "test", "params": [42]}
+        result = client._transform_message_for_verify(data)
+        assert result["params"] == [[42], "verify"]
+
+    def test_firmware_2706_no_params_still_get_verify(self, client):
+        client.status.device_state = {"device": {"firmware_ver_int": 2706}}
+        data = {"method": "test"}
+        result = client._transform_message_for_verify(data)
+        assert result["params"] == ["verify"]
+
+    def test_firmware_2706_set_wheel_position_still_get_verify(self, client):
+        client.status.device_state = {"device": {"firmware_ver_int": 2706}}
+        data = {"method": "set_wheel_position", "params": [1]}
+        result = client._transform_message_for_verify(data)
+        assert result["params"] == [1, "verify"]
 
 
 # ---------------------------------------------------------------------------

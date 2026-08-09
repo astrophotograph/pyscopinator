@@ -11,5 +11,5 @@ This format is SemVer compatible where:
 - MICRO acts as PATCH version
 """
 
-__version__ = "2026.3.14"
-__version_info__ = (2026, 3, 14)
+__version__ = "2026.3.17"
+__version_info__ = (2026, 3, 17)
